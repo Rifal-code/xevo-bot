@@ -10,7 +10,7 @@ const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Pair WhatsApp", href: "/dashboard/pairing", icon: QrCode },
   { label: "Session List", href: "/dashboard/sessions", icon: History },
-  { label: "Bot Settings", href: "/dashboard/settings", icon: Settings },
+  { label: "Admin Ops", href: "/admin", icon: ShieldAlert },
 ];
 
 export function Sidebar() {

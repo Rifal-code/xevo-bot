@@ -14,7 +14,7 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Xevo Web Platform — WhatsApp Bot Multi-Session",
+  title: "PECADO Web Platform — WhatsApp Bot Multi-Session",
   description: "Platform web modern untuk pairing dan automasi WhatsApp terisolasi per tenant.",
 };
 

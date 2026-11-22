@@ -11,9 +11,13 @@ export interface EngineHealth {
   status: string;
   uptimeSeconds: number;
   activeSessions: number;
-  memoryUsage?: {
-    rssMB: number;
-    heapUsedMB: number;
+  connectedSessions: number;
+  pairingSessions: number;
+  load: number;
+  memoryUsage: {
+    usedMB: number;
+    totalMB: number;
+    percent: number;
   };
 }
 
@@ -55,14 +59,31 @@ export class EngineClient {
       success: boolean;
       total?: number;
       connected?: number;
+      pairing?: number;
       uptime?: number;
       load?: number;
+      ramUsed?: number;
+      ramTotal?: number;
     }>("/api/dashboard-stats");
+
+    const usedBytes = res.ramUsed || 0;
+    const totalBytes = res.ramTotal || 1;
+    const usedMB = Math.round(usedBytes / (1024 * 1024));
+    const totalMB = Math.round(totalBytes / (1024 * 1024));
+    const percent = Math.min(100, Math.round((usedBytes / totalBytes) * 100));
 
     return {
       status: "healthy",
       uptimeSeconds: res.uptime || 0,
       activeSessions: res.total || 0,
+      connectedSessions: res.connected || 0,
+      pairingSessions: res.pairing || 0,
+      load: res.load || 0,
+      memoryUsage: {
+        usedMB,
+        totalMB,
+        percent,
+      },
     };
   }
 

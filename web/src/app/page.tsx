@@ -12,8 +12,8 @@ export default function LandingPage() {
       <main className="flex-1 max-w-5xl mx-auto w-full px-6 py-16 flex flex-col items-center text-center">
         {/* Hero Section */}
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-xevo-border bg-xevo-panel text-xevo-redLight font-mono text-xs mb-6 shadow-xevo-brutal">
-          <span>🕷</span>
-          <span>XEVOBOT SECURE WEB PLATFORM V2</span>
+          <span>⚡</span>
+          <span>PECADO SECURE WEB PLATFORM V2</span>
         </div>
 
         <h1 className="text-4xl sm:text-6xl font-black tracking-tight text-white max-w-3xl leading-tight">
@@ -81,7 +81,7 @@ export default function LandingPage() {
       </main>
 
       <footer className="border-t border-xevo-border py-8 text-center text-xs font-mono text-xevo-muted">
-        XEVOBOTWA WEB PLATFORM • SECURE INTEGRATION • 2026
+        PECADO WEB PLATFORM • SECURE INTEGRATION • 2026
       </footer>
     </div>
   );

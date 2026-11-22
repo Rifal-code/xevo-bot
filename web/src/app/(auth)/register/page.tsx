@@ -56,10 +56,10 @@ export default function RegisterPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto w-12 h-12 rounded-xl bg-[#200b0e] border border-xevo-border flex items-center justify-center text-2xl mb-2">
-            🕷
+            ⚡
           </div>
           <CardTitle className="justify-center text-2xl font-black">
-            BUAT AKUN BARU
+            DAFTAR AKUN PECADO
           </CardTitle>
           <CardDescription>
             Daftar untuk mengelola pairing WhatsApp di server terisolasi
