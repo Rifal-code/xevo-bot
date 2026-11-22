@@ -100,7 +100,7 @@ async function disconnectSession(number) {
   const session = sessions.get(number)
 
   if (session) {
-    session.removed = true
+    session.manualDisconnect = true
     session.connected = false
     session.reconnecting = false
     if (session.reconnectTimeout) clearTimeout(session.reconnectTimeout)
@@ -128,6 +128,13 @@ async function reconnectSession(number) {
 
   if (!hasCreds) {
     throw new Error('Kredensial sesi tidak ditemukan di server. Silakan tautkan ulang nomor.')
+  }
+
+  const old = sessions.get(number)
+  if (old) {
+    old.removed = true
+    try { old.conn?.ws?.close?.() } catch {}
+    sessions.delete(number)
   }
 
   return await startSession(number)
@@ -250,35 +257,40 @@ async function startSession(number, options = {}) {
       const loggedOut = statusCode === DisconnectReason.loggedOut
       const registered = !!session.state?.creds?.registered
 
-      // Pairing gagal / socket tertutup sebelum perangkat benar-benar tertaut.
-      // Hapus langsung agar kartu CONNECTING/WAITING tidak tertinggal.
-      if (loggedOut || !registered) {
-        const reason = loggedOut ? 'logged_out_or_removed' : 'pairing_failed_or_not_linked'
-        console.log(`🗑️ Auto delete session ${number}: ${reason}`)
+      // User sengaja menekan PUTUS di dashboard: jangan reconnect otomatis dan JANGAN hapus auth
+      if (session.manualDisconnect) {
+        console.log(`🔌 Sesi ${number} dimatikan manual oleh pengguna (kredensial auth aman).`)
+        return
+      }
+
+      // Hanya hapus auth jika WhatsApp HP sengaja menekan Log Out / Keluar
+      // atau jika saat pairing baru pertama kali gagal sebelum tertaut
+      if (loggedOut || (!registered && session.pendingPairing)) {
+        const reason = loggedOut ? 'logged_out_from_device' : 'pairing_failed_or_not_linked'
+        console.log(`🗑️ Hapus sesi ${number}: ${reason}`)
         await removeSession(number, reason)
         return
       }
 
-      // Sesi yang sebelumnya sudah terhubung boleh reconnect untuk gangguan sementara.
+      // Sesi yang sudah terdaftar: coba reconnect untuk gangguan koneksi sementara
       if (session.reconnecting) return
       session.reconnecting = true
       session.reconnectAttempts += 1
 
       if (session.reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
-        console.log(`🗑️ Reconnect gagal terlalu banyak kali: ${number}`)
-        await removeSession(number, 'reconnect_failed')
+        console.log(`⏸️ Reconnect otomatis dijeda untuk ${number}. Kredensial auth tetap disimpan.`)
+        session.reconnecting = false
         return
       }
 
       if (session.reconnectTimeout) clearTimeout(session.reconnectTimeout)
       session.reconnectTimeout = setTimeout(async () => {
-        if (session.removed) return
+        if (session.removed || session.manualDisconnect) return
         sessions.delete(number)
         try {
           await startSession(number)
         } catch (err) {
           console.error(`❌ Reconnect error (${number}):`, err)
-          await removeSession(number, 'reconnect_start_failed')
         }
       }, 5000)
     }
