@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #080607;
+  --panel: #14090b;
+  --panel2: #1d0b0e;
+  --border: #64151d;
+  --red: #e50914;
+  --red-hover: #ff3340;
+  --text: #fff7f7;
+  --muted: #c5aeb2;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-inter), sans-serif;
+  min-height: 100vh;
+}
+
+/* Xevo Spider Brutalist Card & Shadows */
+.xevo-card {
+  background-color: var(--panel);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 5px 5px 0 #3d0d12;
+}
+
+.xevo-card:hover {
+  border-color: var(--red-hover);
+}
+
+.xevo-btn-primary {
+  background-color: var(--red);
+  color: #ffffff;
+  font-weight: 700;
+  border: 1px solid #ff4b55;
+  border-radius: 8px;
+  box-shadow: 4px 4px 0 #3d0d12;
+  transition: all 0.12s ease;
+}
+
+.xevo-btn-primary:hover {
+  background-color: var(--red-hover);
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0 #3d0d12;
+}
+
+.xevo-btn-primary:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 #3d0d12;
+}

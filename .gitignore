@@ -6,3 +6,6 @@ database/
 *.tmp
 .env
 .env.*
+.next/
+web/.next/
+web/node_modules/
