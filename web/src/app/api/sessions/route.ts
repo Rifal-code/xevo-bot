@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { engineClient } from "@/lib/engine/client";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ export async function GET() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    // Jika belum login, jangan kembalikan sesi milik orang lain
+    // Jika belum login, jangan kembalikan sesi
     if (!user) {
       return NextResponse.json({
         success: true,
@@ -38,6 +39,23 @@ export async function GET() {
     const engineConnectedMap = new Map(
       engineSessions.map((s) => [s.phoneNumber, s.connected])
     );
+
+    // Sinkronisasi status socket ke Supabase jika ada sesi yang baru tersambung
+    const adminDb = createAdminClient();
+    for (const sess of dbSessions || []) {
+      const isConnected = !!engineConnectedMap.get(sess.engine_session_ref);
+      if (isConnected && sess.status !== "connected") {
+        await adminDb
+          .from("whatsapp_sessions")
+          .update({
+            status: "connected",
+            connected_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", sess.id);
+        sess.status = "connected";
+      }
+    }
 
     const userSessions = (dbSessions || []).map((sess) => {
       const isConnected = !!engineConnectedMap.get(sess.engine_session_ref);

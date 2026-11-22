@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import crypto from "crypto";
 import { engineClient } from "@/lib/engine/client";
 import { checkRateLimit } from "@/lib/redis/rate-limit";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { maskPhoneNumber } from "@/lib/utils";
 
 const pairingSchema = z.object({
@@ -65,21 +67,43 @@ export async function POST(req: NextRequest) {
     const result = await engineClient.requestPairing(clean);
 
     if (user) {
-      const crypto = await import("crypto");
-      const phoneMasked = maskPhoneNumber(clean);
-      const phoneHash = crypto.createHash("sha256").update(clean).digest("hex");
+      try {
+        const phoneMasked = maskPhoneNumber(clean);
+        const phoneHash = crypto.createHash("sha256").update(clean).digest("hex");
+        const adminDb = createAdminClient();
 
-      await supabase.from("whatsapp_sessions").upsert(
-        {
-          user_id: user.id,
-          phone_masked: phoneMasked,
-          phone_lookup_hash: phoneHash,
-          engine_session_ref: clean,
-          status: "pairing",
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "phone_lookup_hash" }
-      );
+        const { data: existing } = await adminDb
+          .from("whatsapp_sessions")
+          .select("id")
+          .eq("phone_lookup_hash", phoneHash)
+          .maybeSingle();
+
+        if (existing) {
+          await adminDb
+            .from("whatsapp_sessions")
+            .update({
+              user_id: user.id,
+              phone_masked: phoneMasked,
+              engine_session_ref: clean,
+              status: "pairing",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", existing.id);
+        } else {
+          await adminDb
+            .from("whatsapp_sessions")
+            .insert({
+              user_id: user.id,
+              phone_masked: phoneMasked,
+              phone_lookup_hash: phoneHash,
+              engine_session_ref: clean,
+              status: "pairing",
+              updated_at: new Date().toISOString(),
+            });
+        }
+      } catch (dbErr) {
+        console.error("❌ Gagal menyimpan sesi ke database:", dbErr);
+      }
     }
 
     return NextResponse.json({

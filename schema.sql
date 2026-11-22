@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS public.whatsapp_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     phone_masked TEXT NOT NULL,
-    phone_lookup_hash TEXT NOT NULL,
+    phone_lookup_hash TEXT NOT NULL UNIQUE,
     status TEXT NOT NULL DEFAULT 'pairing' CHECK (status IN ('pairing', 'connected', 'disconnected', 'reconnecting')),
     engine_session_ref TEXT NOT NULL,
     connected_at TIMESTAMPTZ,
