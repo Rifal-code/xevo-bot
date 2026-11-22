@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Smartphone, KeyRound } from "lucide-react";
 import { engineClient } from "@/lib/engine/client";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export default async function DashboardPage() {
   let health = { status: "unknown", activeSessions: 0, uptimeSeconds: 0 };
@@ -18,11 +19,11 @@ export default async function DashboardPage() {
       data: { user },
     } = await supabase.auth.getUser();
     if (user) {
-      const { count } = await supabase
+      const adminDb = createAdminClient();
+      const { count } = await adminDb
         .from("whatsapp_sessions")
         .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .neq("status", "deleted");
+        .eq("user_id", user.id);
       userSessionCount = count || 0;
     }
   } catch {}

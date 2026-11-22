@@ -4,6 +4,14 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const crypto = require('crypto')
+
+process.on('uncaughtException', (err) => {
+  console.error('⚠️ [Engine uncaughtException]:', err?.message || err)
+})
+process.on('unhandledRejection', (reason) => {
+  console.error('⚠️ [Engine unhandledRejection]:', reason?.message || reason)
+})
+
 const { requestPairing, listSessions, removeSession, disconnectSession, reconnectSession } = require('./index.js')
 
 const PORT = Number(process.env.PORT) || 5004

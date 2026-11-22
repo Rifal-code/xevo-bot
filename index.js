@@ -12,6 +12,13 @@ const { Boom } = require('@hapi/boom')
 const { smsg, makeWASocket: makeWASocketSimple } = require('./lib/msg.js')
 let handleMessage = require('./Xevo.js')
 
+process.on('uncaughtException', (err) => {
+  console.error('⚠️ [Engine uncaughtException]:', err?.message || err)
+})
+process.on('unhandledRejection', (reason) => {
+  console.error('⚠️ [Engine unhandledRejection]:', reason?.message || reason)
+})
+
 const AUTH_ROOT = path.join(__dirname, 'auth')
 const sessions = new Map()
 const pairingLocks = new Map()
@@ -95,6 +102,18 @@ function listSessions() {
     .sort((a, b) => a.number.localeCompare(b.number))
 }
 
+async function safeCloseSocket(conn) {
+  if (!conn) return
+  try {
+    if (conn.ev?.removeAllListeners) conn.ev.removeAllListeners()
+    if (typeof conn.end === 'function') {
+      conn.end(undefined)
+    } else if (conn.ws?.close) {
+      conn.ws.close()
+    }
+  } catch {}
+}
+
 async function disconnectSession(number) {
   number = cleanNumber(number)
   const session = sessions.get(number)
@@ -105,7 +124,7 @@ async function disconnectSession(number) {
     session.reconnecting = false
     if (session.reconnectTimeout) clearTimeout(session.reconnectTimeout)
     if (session.pairingTimeout) clearTimeout(session.pairingTimeout)
-    try { session.conn?.ws?.close?.() } catch {}
+    await safeCloseSocket(session.conn)
   }
 
   sessions.delete(number)
@@ -133,7 +152,7 @@ async function reconnectSession(number) {
   const old = sessions.get(number)
   if (old) {
     old.removed = true
-    try { old.conn?.ws?.close?.() } catch {}
+    await safeCloseSocket(old.conn)
     sessions.delete(number)
   }
 
@@ -151,7 +170,7 @@ async function removeSession(number, reason = 'unknown') {
     session.reconnecting = false
     if (session.reconnectTimeout) clearTimeout(session.reconnectTimeout)
     if (session.pairingTimeout) clearTimeout(session.pairingTimeout)
-    try { session.conn?.ws?.close?.() } catch {}
+    await safeCloseSocket(session.conn)
   }
 
   sessions.delete(number)
@@ -380,8 +399,7 @@ async function connectExistingSessions() {
     try {
       await startSession(number)
     } catch (err) {
-      console.error(`❌ Startup session error (${number}):`, err.message || err)
-      await removeSession(number, 'startup_failed')
+      console.warn(`⚠️ Startup session skipped (${number}):`, err?.message || err)
     }
   }
 

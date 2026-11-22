@@ -150,8 +150,19 @@ export default function SessionsPage() {
           method: "DELETE",
         });
         const json = await res.json();
-        if (!res.ok) throw new Error(json?.error?.message || "Gagal menghapus sesi");
+        if (!res.ok || !json.success) {
+          throw new Error(json?.error?.message || "Gagal menghapus sesi");
+        }
         toast.success(`Sesi ${phoneDisplay} berhasil dihapus secara permanen.`);
+        setSessions((prev) =>
+          prev.filter(
+            (s) =>
+              s.engineSessionRef !== sessionRef &&
+              s.id !== sessionRef &&
+              s.engineSessionRef !== dialogState.session?.id &&
+              s.id !== dialogState.session?.id
+          )
+        );
       }
       closeDialog();
       await fetchSessions();
