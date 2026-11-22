@@ -93,6 +93,18 @@ export class EngineClient {
 
     return { code: res.code, number: res.number };
   }
+
+  async deleteSession(sessionRef: string): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>(`/api/sessions/${sessionRef}`, {
+      method: "DELETE",
+    });
+  }
+
+  async disconnectSession(sessionRef: string): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>(`/api/sessions/${sessionRef}/disconnect`, {
+      method: "POST",
+    });
+  }
 }
 
 export const engineClient = new EngineClient();

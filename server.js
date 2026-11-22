@@ -4,7 +4,7 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const crypto = require('crypto')
-const { requestPairing, listSessions } = require('./index.js')
+const { requestPairing, listSessions, removeSession } = require('./index.js')
 
 const PORT = Number(process.env.PORT) || 5004
 const PUBLIC = path.join(__dirname, 'public')
@@ -233,6 +233,24 @@ const server = http.createServer(async (req, res) => {
       return send(res, 401, JSON.stringify({ success: false, message: 'Unauthorized. Akses dashboard atau service token diperlukan.' }))
     }
     return send(res, 200, JSON.stringify({ success: true, sessions: listSessions() }))
+  }
+
+  if ((req.method === 'DELETE' || req.method === 'POST') && url.pathname.startsWith('/api/sessions/')) {
+    if (!isAuthorized(req)) {
+      return send(res, 401, JSON.stringify({ success: false, message: 'Unauthorized.' }))
+    }
+    const parts = url.pathname.split('/')
+    const sessionNum = parts[3]
+    const action = parts[4]
+    if (!sessionNum) {
+      return send(res, 400, JSON.stringify({ success: false, message: 'Nomor sesi tidak valid.' }))
+    }
+    try {
+      await removeSession(sessionNum, action === 'disconnect' ? 'user_disconnect' : 'user_delete')
+      return send(res, 200, JSON.stringify({ success: true, message: 'Sesi berhasil dihapus.' }))
+    } catch (err) {
+      return send(res, 500, JSON.stringify({ success: false, message: err?.message || 'Gagal menghapus sesi.' }))
+    }
   }
 
   if (req.method === 'GET' && url.pathname === '/api/dashboard-stats') {
