@@ -279,7 +279,7 @@ async function requestPairing(phoneNumber) {
         throw new Error('Koneksi pairing ditutup sebelum kode dibuat. Silakan coba lagi.')
       }
 
-      const code = await session.conn.requestPairingCode(number, 'XEVOBOT')
+      const code = await session.conn.requestPairingCode(number)
       if (!code) throw new Error('WhatsApp belum memberikan pairing code. Coba generate ulang beberapa detik lagi.')
 
       return { code, number }
