@@ -112,7 +112,7 @@ BEGIN
     INSERT INTO public.profiles (id, display_name, role)
     VALUES (
         NEW.id,
-        COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', 'Pengguna Xevo'),
+        COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', 'Pengguna PECADO'),
         'user'
     );
     RETURN NEW;
