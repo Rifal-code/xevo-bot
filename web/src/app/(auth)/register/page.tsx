@@ -26,27 +26,27 @@ export default function RegisterPage() {
         throw new Error("Password minimal 6 karakter.");
       }
 
-      const supabase = createClient();
-      const { data, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: name,
-          },
-        },
+      // 1. Buat akun melalui server endpoint dengan auto-confirm (bypass email rate limit)
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
       });
 
-      if (authError) {
-        throw new Error(authError.message);
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok || !json.success) {
+        throw new Error(json.message || "Gagal membuat akun.");
       }
 
-      // Jika pendaftaran berhasil
-      if (data?.session) {
-        router.push("/dashboard");
-      } else {
-        router.push("/login?registered=true");
-      }
+      // 2. Langsung login otomatis ke sesi pengguna
+      const supabase = createClient();
+      await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      router.push("/dashboard");
     } catch (err: any) {
       setError(err?.message || "Registrasi gagal.");
     } finally {
