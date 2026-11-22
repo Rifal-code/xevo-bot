@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { QrCode, LayoutDashboard, History, Settings, ShieldAlert, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -15,6 +16,32 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [isAdmin, setIsAdmin] = React.useState(false);
+
+  React.useEffect(() => {
+    async function checkRole() {
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+        if (profile?.role === "admin") {
+          setIsAdmin(true);
+        }
+      } catch {
+        // Guest / non-admin
+      }
+    }
+    checkRole();
+  }, []);
+
+  const visibleNav = NAV_ITEMS.filter((item) => item.href !== "/admin" || isAdmin);
 
   return (
     <aside className="w-64 border-r-2 border-xevo-border bg-xevo-panel flex flex-col justify-between p-4 min-h-[calc(100vh-4rem)]">
@@ -26,7 +53,7 @@ export function Sidebar() {
         </div>
 
         <nav className="space-y-1.5">
-          {NAV_ITEMS.map((item) => {
+          {visibleNav.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
             return (

@@ -27,7 +27,7 @@ export default function RegisterPage() {
       }
 
       const supabase = createClient();
-      const { error: authError } = await supabase.auth.signUp({
+      const { data, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -38,12 +38,15 @@ export default function RegisterPage() {
       });
 
       if (authError) {
-        // Fallback for development if Supabase cloud is not configured yet
-        router.push("/dashboard");
-        return;
+        throw new Error(authError.message);
       }
 
-      router.push("/dashboard");
+      // Jika pendaftaran berhasil
+      if (data?.session) {
+        router.push("/dashboard");
+      } else {
+        router.push("/login?registered=true");
+      }
     } catch (err: any) {
       setError(err?.message || "Registrasi gagal.");
     } finally {

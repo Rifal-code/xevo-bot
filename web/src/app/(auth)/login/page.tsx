@@ -22,17 +22,12 @@ export default function LoginPage() {
 
     try {
       const supabase = createClient();
-      const { error: authError } = await supabase.auth.signInWithPassword({
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (authError) {
-        // Fallback for development if Supabase cloud is not configured yet
-        if (email && password.length >= 6) {
-          router.push("/dashboard");
-          return;
-        }
         throw new Error(authError.message);
       }
 

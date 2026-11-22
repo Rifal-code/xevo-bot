@@ -1,12 +1,35 @@
 import React from "react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ShieldCheck, Terminal, Activity, ArrowLeft } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
 
-export default function AdminLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // Proteksi: Pengguna wajib login untuk masuk admin
+  if (!user) {
+    redirect("/login");
+  }
+
+  // Proteksi: Hanya user dengan role admin pada tabel profiles yang diizinkan
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || profile.role !== "admin") {
+    redirect("/dashboard");
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-xevo-bg text-xevo-text">
       {/* Admin Operations Topbar */}
