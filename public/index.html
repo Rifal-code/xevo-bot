@@ -1,0 +1,616 @@
+<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Xevo Bot V2</title><style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Space+Mono:wght@400;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}:root{--bg:#08091f;--panel:#11132f;--panel2:#171936;--text:#f8f8ff;--muted:#9da6dc;--blue:#6366f1;--blue2:#7980ff;--green:#22c55e;--yellow:#ffc21c;--red:#fb7185;--border:#424568}body{min-height:100vh;background:radial-gradient(circle at 80% -10%,#1d2158 0,transparent 35%),var(--bg);color:var(--text);font-family:Inter,Arial,sans-serif}.app{width:min(100%,760px);margin:auto;padding:22px 18px 42px}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.brand h1{font-size:42px;font-weight:900;letter-spacing:-2px}.brand p{font:700 10px 'Space Mono',monospace;color:var(--muted);margin-top:6px}.online{display:flex;align-items:center;gap:7px;padding:9px 11px;border:1px solid #315f48;border-radius:10px;background:#0e1b20;color:#6ee59b;font:700 10px 'Space Mono',monospace}.dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+.box{background:rgba(17,19,47,.95);border:2px solid var(--border);border-radius:20px;box-shadow:5px 5px 0 #2f347f}.profile{padding:11px 13px}.profile-top{display:flex;gap:10px;align-items:center}.avatar{width:52px;height:52px;border-radius:14px;padding:3px;background:var(--blue);flex:none}.avatar img,.fallback{width:100%;height:100%;border-radius:14px;object-fit:cover}.fallback{display:grid;place-items:center;background:#20234a;font-size:28px}.dev{font-size:16px;font-weight:900}.role{font:700 8px 'Space Mono',monospace;color:var(--muted);margin-top:5px}.tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}.tag{padding:4px 6px;border-radius:7px;background:#191c41;border:1px solid #363a69;color:#c6cbff;font:700 8px 'Space Mono',monospace}.info-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px}.info{padding:7px 8px;border:1px solid #34375c;border-radius:10px;background:#0d0f29}.label{font:700 8px 'Space Mono',monospace;color:#8189bd}.value{margin-top:4px;font-weight:800;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.section{margin-top:22px}.section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px}.section-title{font-size:15px;font-weight:900}.section-sub{font:700 9px 'Space Mono',monospace;color:var(--muted)}.stats{display:grid;grid-template-columns:1fr;gap:9px}.stat{max-width:100%}.stat{padding:13px 10px;border-radius:15px;border:2px solid var(--border);background:var(--panel);text-align:center}.stat strong{display:block;font-size:22px}.stat span{display:block;margin-top:4px;font:700 8px 'Space Mono',monospace;color:var(--muted)}
+.pair{padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:.2s}.pair:hover{transform:translateY(-2px);border-color:var(--blue2)}.pair-icon{width:45px;height:45px;border-radius:13px;display:grid;place-items:center;background:var(--blue);border:2px solid white;color:#070818;font-size:22px}.pair-copy{flex:1}.pair-copy h2{font-size:17px}.pair-copy p{margin-top:4px;font-size:10px;color:var(--muted)}.pair-action{padding:7px 9px;border:1px solid var(--blue2);border-radius:8px;color:#bfc4ff;font:700 9px 'Space Mono',monospace}
+.search{width:100%;padding:11px 12px;border:2px solid var(--border);border-radius:12px;background:#0d0f29;color:white;outline:none;margin-bottom:9px}.search:focus{border-color:var(--blue2)}.sessions{overflow:hidden;min-height:170px}.session-row{min-height:58px}.session-row{display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:9px;align-items:center;padding:10px 12px;border-bottom:1px solid #292c4c}.session-row:last-child{border:0}.sicon{width:29px;height:29px;border-radius:9px;display:grid;place-items:center;background:#1c2049;font-size:13px}.phone{font-size:12px;font-weight:800}.meta{margin-top:3px;font:700 7px 'Space Mono',monospace;color:var(--muted)}.state{padding:5px 6px;border-radius:7px;font:700 7px 'Space Mono',monospace}.connected{color:#75e7a0;background:#0e271b}.reconnecting{color:#ffdb71;background:#30270c}.empty{padding:20px;text-align:center;color:var(--muted);font:700 10px 'Space Mono',monospace}
+.monitor{padding:13px}.meter{margin:10px 0}.meter-head{display:flex;justify-content:space-between;font:700 9px 'Space Mono',monospace}.bar{height:8px;background:#090a20;border-radius:8px;margin-top:6px;overflow:hidden}.fill{height:100%;background:linear-gradient(90deg,var(--blue),#9a9fff);width:0;transition:.5s}.monitor-bottom{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}.mini{padding:10px;border:1px solid #34375c;border-radius:10px;background:#0d0f29}.mini strong{display:block;font-size:13px}.mini span{font:700 7px 'Space Mono',monospace;color:var(--muted)}
+.activity{overflow:hidden}.activity-row{display:flex;gap:9px;align-items:center;padding:10px 12px;border-bottom:1px solid #292c4c}.activity-row:last-child{border:0}.aicon{font-size:13px}.activity-row p{font-size:10px;font-weight:700}.activity-row small{display:block;margin-top:3px;font:700 7px 'Space Mono',monospace;color:var(--muted)}.support-btn{display:flex;align-items:center;gap:12px;padding:13px 15px;border:2px solid #d69a42;border-radius:16px;background:linear-gradient(145deg,#2a1a0c,#17101a);box-shadow:7px 8px 0 #5f3517;color:#fff;text-decoration:none;transition:.2s}.support-btn:hover{transform:translateY(-2px)}.support-icon{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:#ffb74d;color:#1a1010;font-size:19px;border:2px solid #fff}.support-btn b{display:block;font-size:12px}.support-btn small{display:block;margin-top:3px;color:#d7c0a3;font:700 8px "Space Mono",monospace}.support-go{margin-left:auto;font-size:20px;color:#ffcf7c}.footer{text-align:center;margin-top:30px;color:#858dbf;font:700 9px 'Space Mono',monospace}.modal{display:none;position:fixed;inset:0;z-index:20;background:#000b;align-items:center;justify-content:center;padding:18px}.modal.active{display:flex}.modal-box{width:min(100%,410px);padding:22px;position:relative}.close{position:absolute;right:12px;top:7px;background:none;border:0;color:#fff;font-size:28px}.modal h2{font-size:23px}.modal p{font-size:11px;line-height:1.5;color:var(--muted);margin:8px 0 15px}.modal input{width:100%;padding:13px;background:#090a20;border:2px solid var(--border);border-radius:10px;color:white;outline:none}.modal input:focus{border-color:var(--blue2)}.btn{width:100%;padding:13px;border:0;border-radius:10px;background:var(--blue);color:white;font-weight:900;margin-top:10px}.result{min-height:42px;margin-top:10px;padding:10px;text-align:center;border:1px solid var(--border);border-radius:10px;color:#9bea28;font:700 10px 'Space Mono',monospace;line-height:1.5}.error{color:#ff9aa9}@media(max-width:430px){.brand h1{font-size:35px}.stats{gap:6px}.stat{padding:10px 6px}.stat strong{font-size:19px}.profile{padding:13px}.avatar{width:62px;height:62px}.info-grid{gap:6px}.value{font-size:11px}}
+
+/* SAWERIA-INSPIRED COLOR THEME — removes pink and uses warm orange/yellow + neutral grey */
+:root{--bg:#f4f4f6;--panel:#ffffff;--panel2:#f1f2f4;--text:#2d3038;--muted:#747983;--blue:#ffb43b;--blue2:#ffcb68;--green:#2eb77a;--yellow:#ffb43b;--red:#ffb43b;--border:#d9dce2}
+body{background:radial-gradient(circle at 90% -5%,rgba(255,180,59,.14),transparent 27%),radial-gradient(circle at 0% 24%,rgba(111,189,209,.10),transparent 26%),#f4f4f6;color:var(--text)}
+.brand h1{color:#30323a}.brand p{color:#7b7f88}.online{background:#eaf8f1;border-color:#ccebdc;color:#25895f}
+.box,.stat{background:#fff;border-color:#d9dce2;box-shadow:6px 7px 0 rgba(38,40,46,.13),0 10px 24px rgba(38,40,46,.05)}
+.profile{background:linear-gradient(135deg,#fff,#f7f7f8);border-color:#d9dce2}.avatar{background:#ffb43b}.fallback{background:#fff8e8}.tag{background:#fff8e8;border-color:#f2d79d;color:#815d17}.info{background:#f7f8f9;border-color:#e0e2e6}.label{color:#777c85}
+.support-btn{border-color:#e4a52d;background:linear-gradient(135deg,#ffbf4d,#ffa92e);box-shadow:7px 8px 0 #4a4a4f;color:#27262a}.support-icon{background:#fff;color:#f0a425;border-color:#fff}.support-btn small{color:#5c4a2d}.support-go{color:#27262a}
+.pair{border-color:#d9dce2;background:linear-gradient(135deg,#fff,#fffaf0);box-shadow:6px 7px 0 rgba(38,40,46,.13),0 10px 22px rgba(38,40,46,.05)}.pair:hover{border-color:#ffb43b}.pair-icon{background:#ffb43b;color:#fff;border-color:#fff;box-shadow:3px 4px 0 #d7961e}.pair-action{background:#ffb43b;border-color:#ffb43b;color:#2e2d30}
+.total-near-list{border-color:#d9dce2;background:linear-gradient(135deg,#fff,#fff9ee);box-shadow:4px 5px 0 rgba(38,40,46,.09)}.total-near-list strong{background:#fff3d8;border-color:#f1d39a;color:#9b6810}
+.sessions{background:#fff}.session-row{background:#fff}.session-row:hover{background:#fff9ee}.sicon{background:#fff3d8}.connected{background:#e8f8ef;color:#248b5c}.reconnecting{background:#fff5d8;color:#a66c08}
+.modal{background:rgba(39,41,47,.42)}.modal-box{background:#fff!important;border-color:#d9dce2}.modal input{background:#f7f8f9;color:#2d3038;border-color:#d9dce2}.modal input:focus{border-color:#ffb43b}.btn{background:#ffb43b;color:#2b2b2d}.result{border-color:#ead7ae;background:#fffaf0;color:#8d6517}.guide{border-color:#ead7ae;background:#fffaf0;box-shadow:4px 5px 0 rgba(38,40,46,.08)}.guide .hint{background:#fff3d8;color:#805d19}.footer{color:#81858d}
+
+</style>
+<style>
+/* V2 Professional 3D refinement */
+:root{--bg:#070916;--panel:#10142a;--panel2:#151a35;--border:#394066;--blue:#6674ff;--blue2:#9aa2ff}
+body{background:radial-gradient(circle at 15% -10%,rgba(86,102,255,.28),transparent 33%),radial-gradient(circle at 100% 30%,rgba(49,68,166,.18),transparent 35%),var(--bg)}
+.app{width:min(100%,780px);padding:26px 20px 48px}
+.box,.stat{box-shadow:7px 9px 0 rgba(49,58,135,.72),0 16px 34px rgba(0,0,0,.22)}
+.profile{border-color:#4a5385;background:linear-gradient(145deg,rgba(25,30,62,.98),rgba(13,16,38,.98))}
+.pair{border-color:#5661a9;background:linear-gradient(145deg,#171c3b,#10132d);box-shadow:7px 9px 0 #343d9c,0 14px 28px rgba(0,0,0,.22)}
+.pair-icon{box-shadow:4px 5px 0 #343d9c}
+.pair-action{background:#151b3d}
+.section-title{letter-spacing:.2px}
+.stat{background:linear-gradient(145deg,#161b39,#10132b);border-color:#424c7c}
+.sessions{box-shadow:7px 9px 0 rgba(49,58,135,.62)}
+.session-row{background:linear-gradient(90deg,rgba(20,25,52,.9),rgba(13,16,38,.9))}
+.guide{display:none;margin-top:14px;padding:15px 16px;border:1px solid #3f4a85;border-radius:14px;background:linear-gradient(145deg,#121735,#0d1028);box-shadow:5px 6px 0 rgba(47,56,130,.65)}
+.guide.show{display:block}
+.guide h3{font-size:13px;margin-bottom:10px}
+.guide ol{padding-left:20px;color:var(--muted);font-size:10px;line-height:1.8}
+.guide .hint{margin-top:10px;padding:8px 10px;border-radius:8px;background:#0a0d21;color:#c7ceff;font:700 8px 'Space Mono',monospace}
+.code-title{margin-top:14px;color:#aeb7ff;font:700 8px 'Space Mono',monospace}
+.code-value{margin-top:6px;padding:12px;border:1px dashed #6674ff;border-radius:10px;background:#090c21;font:900 18px 'Space Mono',monospace;letter-spacing:2px;color:#fff}
+@media(max-width:430px){.app{padding:20px 14px 38px}.box,.stat{box-shadow:5px 6px 0 rgba(49,58,135,.7)}.info-grid{grid-template-columns:repeat(2,1fr)}.profile{padding:10px}.avatar{width:48px;height:48px}.support-btn{padding:12px}}
+</style>
+
+<style>
+/* SAWERIA-STYLE FINAL THEME — orange/yellow, white, grey, no pink */
+:root{--bg:#f5f6f8;--panel:#ffffff;--panel2:#f7f7f8;--text:#2f3138;--muted:#747781;--blue:#ff9f1c;--blue2:#ffc24d;--green:#2eb67d;--yellow:#ffb11b;--red:#ff9f1c;--border:#dedfe3}
+body{background:radial-gradient(circle at 7% 0%,rgba(255,180,44,.16),transparent 25%),radial-gradient(circle at 100% 10%,rgba(255,159,28,.12),transparent 28%),#f5f6f8;color:var(--text)}
+.app{width:min(100%,760px);padding:18px 14px 36px}.top{margin-bottom:12px}.brand h1{font-size:34px;color:#292b31}.brand p{color:#777a83}.online{background:#edf8f2;border-color:#d1ebdd;color:#2a9868}
+.box,.stat{box-shadow:5px 7px 0 rgba(45,45,50,.10),0 12px 28px rgba(45,45,50,.05);background:#fff;border-color:#dedfe3}.profile{padding:8px 10px;border-radius:16px}.profile-top{gap:8px}.avatar{width:44px;height:44px;border-radius:12px;padding:2px;background:#ff9f1c}.avatar img,.fallback{border-radius:10px}.fallback{font-size:22px;background:#fff7e8}.dev{font-size:14px}.role{font-size:7px;margin-top:3px}.tags{margin-top:4px;gap:4px}.tag{padding:3px 5px;font-size:7px;background:#fff6df;border-color:#ffd88a;color:#8b5b0c}.info-grid{grid-template-columns:repeat(4,1fr);gap:4px;margin-top:7px}.info{padding:5px 6px;border-radius:8px;background:#f7f7f8;border-color:#e4e4e7}.label{font-size:6px}.value{font-size:9px;margin-top:2px}
+.section{margin-top:17px}.section-head{margin-bottom:8px}.section-title{font-size:13px}.section-sub{font-size:8px}.stats{display:flex;justify-content:flex-start}.stat{max-width:132px;width:132px;padding:8px;border-radius:12px}.stat strong{font-size:18px}.stat span{font-size:7px;margin-top:2px}
+.support-section{margin-top:10px}.support-btn{border-color:#f0aa28;background:linear-gradient(135deg,#ffbd39,#ff9f1c);box-shadow:5px 7px 0 #4a4a4f;color:#27272a}.support-icon{background:#fff;color:#ff9f1c;border-color:#fff}.support-btn small{color:#5f471f}.support-go{color:#27272a}
+.pair{padding:12px;border-radius:16px;border-color:#e2d7c2;background:linear-gradient(135deg,#fff,#fffaf0);box-shadow:5px 7px 0 rgba(45,45,50,.11),0 10px 20px rgba(45,45,50,.05)}.pair:hover{border-color:#ff9f1c}.pair-icon{width:38px;height:38px;border-radius:11px;background:#ff9f1c;box-shadow:3px 4px 0 #cc7c0d;font-size:18px}.pair-copy h2{font-size:15px}.pair-copy p{font-size:9px}.pair-action{background:#ff9f1c;color:#fff;border-color:#ff9f1c;font-size:8px;border-radius:8px}
+.pairing-list-section{margin-top:18px}.total-near-list{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 9px;padding:9px 11px;border:1px solid #e0e0e2;border-radius:13px;background:linear-gradient(135deg,#fff,#fff9ed);box-shadow:4px 5px 0 rgba(45,45,50,.07)}.total-copy span{display:block;font:800 8px 'Space Mono',monospace;color:#4b4d55;letter-spacing:.5px}.total-copy small{display:block;margin-top:4px;font-size:8px;color:#85868d}.total-near-list strong{min-width:42px;height:38px;padding:0 10px;border-radius:10px;display:grid;place-items:center;background:#fff0c9;border:1px solid #ffd26d;color:#9b5f00;font-size:18px}
+.sessions{min-height:210px;border-radius:16px;background:#fff}.session-row{min-height:52px;padding:9px 10px;background:#fff;border-bottom-color:#ededee}.session-row:hover{background:#fffaf0}.sicon{background:#fff0c9}.phone{font-size:11px}.connected{background:#e9f8ef;color:#248a5b}.reconnecting{background:#fff5d9;color:#9b680b}.empty{color:#7e8189}
+.modal{background:rgba(35,35,40,.42);backdrop-filter:blur(4px)}.modal-box{background:#fff!important;border-color:#e0e0e3}.modal h2{color:#292a30}.modal p{color:#6f727b}.modal input{background:#f8f8f8;color:#292a30;border-color:#e0e0e3}.modal input:focus{border-color:#ff9f1c}.btn{background:#ff9f1c}.result{border-color:#ecd7a3;background:#fffaf0;color:#8d6415}.error{color:#c85145}.guide{border-color:#ecd7a3;background:#fffaf0;box-shadow:4px 5px 0 rgba(45,45,50,.08)}.guide .hint{background:#fff0c9;color:#80590f}.footer{color:#868990}
+@media(max-width:430px){.brand h1{font-size:30px}.profile{padding:8px}.info-grid{grid-template-columns:repeat(2,1fr)}.info{padding:5px}.stat{width:120px;max-width:120px}.total-near-list{padding:8px 9px}.total-copy small{font-size:7px}.total-near-list strong{min-width:38px;height:34px;font-size:16px}}
+</style>
+
+<style>
+/* XEVO SECURE ACCESS */
+.auth-screen{
+  position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
+  overflow:hidden;background:#08090f;
+}
+.auth-screen.hidden{display:none}
+.access-bg-video{
+  position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  background:#08090f;z-index:0;
+}
+.access-bg-overlay{
+  position:absolute;inset:0;z-index:1;
+  background:rgba(4,5,12,.48);
+  backdrop-filter:brightness(.72);
+}
+.access-center{
+  position:relative;z-index:2;width:min(92%,430px);
+  display:flex;flex-direction:column;align-items:center;text-align:center;
+}
+.access-brand{
+  font-size:52px;line-height:1;font-weight:900;letter-spacing:5px;
+  background:linear-gradient(90deg,#fff1c6,#f5c04d,#d74c57);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  text-shadow:0 4px 30px rgba(0,0,0,.45);
+}
+.access-sub{
+  margin-top:12px;padding:9px 22px;border:1.5px solid rgba(218,178,76,.8);
+  border-radius:22px;background:rgba(8,8,18,.55);
+  color:#f0cf72;font:700 9px 'Space Mono',monospace;letter-spacing:2px;
+}
+.access-btn{
+  margin-top:28px;width:min(100%,350px);padding:18px 22px;
+  border:2px solid rgba(190,161,76,.85);border-radius:10px;
+  background:rgba(15,14,29,.88);color:#fff;
+  box-shadow:0 10px 35px rgba(0,0,0,.35),0 0 24px rgba(226,190,84,.08);
+  font:900 12px 'Space Mono',monospace;letter-spacing:1.5px;
+  cursor:pointer;transition:.18s;
+}
+.access-btn:hover{transform:translateY(-2px);border-color:#f0ca63;box-shadow:0 12px 38px rgba(0,0,0,.4),0 0 30px rgba(226,190,84,.16)}
+.access-btn:active{transform:translateY(1px)}
+.access-btn:disabled{opacity:.65;cursor:wait}
+.access-icon{display:inline-block;margin-right:8px;color:#e4bd5b;font-size:17px;vertical-align:-2px}
+#authMsg{margin-top:10px;color:#f2c96b;font:700 9px 'Space Mono',monospace;min-height:15px}
+#authMsg.error{color:#ff8f8f}
+@media(max-width:430px){
+  .access-brand{font-size:46px}
+  .access-btn{width:calc(100% - 24px)}
+}
+</style>
+<!--
+  VIDEO BACKGROUND:
+  Put your own MP4 video in the public folder and name it "background.mp4".
+  The video will automatically play, loop, mute, and fill the screen.
+  You can also change the filename in the <source> above.
+-->
+
+<style id="xevo-spiderman-theme">
+/* XEVO — SPIDER RED THEME */
+:root{
+  --bg:#080607;--panel:#14090b;--panel2:#1d0b0e;--text:#fff7f7;--muted:#c5aeb2;
+  --blue:#e50914;--blue2:#ff3340;--green:#35d07f;--yellow:#ffd166;--red:#ff3040;--border:#64151d;
+}
+body{
+  background:
+    radial-gradient(circle at 50% -15%,rgba(229,9,20,.38),transparent 34%),
+    radial-gradient(circle at 10% 55%,rgba(139,0,0,.18),transparent 28%),
+    #080607;
+  position:relative;overflow-x:hidden;
+}
+body:before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;opacity:.13;
+  background:
+    repeating-radial-gradient(circle at 50% 0%,transparent 0 42px,rgba(255,255,255,.45) 43px 44px,transparent 45px 72px),
+    repeating-conic-gradient(from -8deg at 50% 0%,transparent 0deg 11deg,rgba(255,255,255,.35) 11.5deg 12deg,transparent 12.5deg 24deg);
+  mask-image:linear-gradient(to bottom,#000,transparent 75%);
+}
+.box,.stat,.sessions,.global-chat,.pairing-list-section .total-near-list{border-color:#64151d;box-shadow:5px 5px 0 #3d0d12}
+.brand h1,.access-brand{color:#fff;text-shadow:0 0 12px rgba(229,9,20,.65),0 4px 24px rgba(0,0,0,.7)}
+.brand h1:before{content:'🕷 ';font-size:.65em;color:#e50914}
+.online{border-color:#5e252b;background:#160b0d}
+.avatar{background:#e50914}.pair-icon{background:#e50914;border-color:#ffb3b8;color:#fff;box-shadow:3px 4px 0 #8b0b13}
+.pair:hover{border-color:#ff3340}.pair-action{border-color:#ff3340;color:#ff9ca3}
+.search:focus{border-color:#ff3340}.fill{background:linear-gradient(90deg,#b3000b,#ff3340)}
+.support-btn{border-color:#a20d18;background:linear-gradient(145deg,#3a080d,#16080a);box-shadow:7px 8px 0 #570910}
+.support-icon{background:#e50914;color:#fff}.support-go{color:#ff7881}
+.auth-screen{background:#070506}.access-bg-overlay{background:rgba(12,0,2,.56)}
+.access-brand{background:linear-gradient(90deg,#fff,#ff5963,#e50914,#8d0008);-webkit-background-clip:text;background-clip:text}
+.access-sub{border-color:rgba(229,9,20,.85);background:rgba(12,3,5,.7);color:#ff8c94}
+.access-btn{border-color:rgba(229,9,20,.9);background:rgba(19,5,7,.9);box-shadow:0 10px 35px rgba(0,0,0,.5),0 0 26px rgba(229,9,20,.16)}
+.access-btn:hover{border-color:#ff4b55;box-shadow:0 12px 38px rgba(0,0,0,.55),0 0 32px rgba(229,9,20,.28)}
+.access-icon{color:#ff3440}#authMsg{color:#ff7d86}
+.btn{background:#e50914}.modal input:focus{border-color:#e50914}.result{border-color:#64151d;background:#22090d}.guide{border-color:#64151d;background:#18080b}.guide .hint{background:#300b10;color:#ffadb3}
+.session-row:hover{background:#1c080b}.sicon{background:#300b10}.connected{background:#0d291b}.reconnecting{background:#33250b}
+.footer{color:#a77f84}
+/* spider emblem */
+.pair-image-slot{border-color:#64151d!important}
+</style>
+</head><body>
+
+<div id="authScreen" class="auth-screen">
+  <video id="accessBgVideo" class="access-bg-video" autoplay muted loop playsinline>
+    <source src="/background.mp4" type="video/mp4">
+  </video>
+  <div class="access-bg-overlay"></div>
+  <div class="access-center">
+    <div class="access-brand">XEVO</div>
+    <div class="access-sub">SECURE DASHBOARD ACCESS</div>
+    <button id="authBtn" class="access-btn">
+      <span class="access-icon">⌁</span>
+      <span>SENTUH UNTUK MASUK</span>
+    </button>
+    <div id="authMsg" class="auth-msg"></div>
+  </div>
+</div>
+<main class="app"><div class="top"><div class="brand"><h1>Xevo Bot</h1><p>V2 • MULTI SESSION DASHBOARD</p></div><div class="online"><i class="dot"></i>ONLINE</div></div>
+<section class="profile-simple" aria-label="Informasi developer">
+  <div class="profile-header-row">
+    <div class="profile-avatar-wrap"><img id="profileImage" alt="Foto profil developer" referrerpolicy="no-referrer"><span id="profileFallback">👤</span></div>
+    <div>
+      <div class="profile-kicker">DEVELOPER / BOT OWNER</div>
+      <div id="developerName" class="profile-name">Developer</div>
+    </div>
+  </div>
+  <div class="profile-line"><span id="botName">XevoBot</span><i>•</i><span id="botVersion">v1.0.0</span><i>•</i><span id="botMode">PUBLIC</span></div>
+  <div class="profile-meta">
+    <span>RUNTIME <b id="runtime">0s</b></span>
+    <span>PREFIX <b id="botPrefix">.</b></span>
+    <span>SESSION <b id="profileSessions">0</b></span>
+    <span>SYSTEM <b id="systemInfo">ONLINE</b></span>
+  </div>
+</section>
+<section class="section support-section"><a id="supportBtn" class="support-btn" href="https://saweria.co/" target="_blank" rel="noopener noreferrer"><span class="support-icon">♥</span><span><b>SUPPORT SAYA</b><small>Dukung pengembangan Xevo Bot melalui Saweria</small></span><span class="support-go">↗</span></a></section>
+<section class="section"><div class="section-head"><div class="section-title">PAIRING</div><div class="section-sub">PUBLIC ACCESS</div></div><article class="box pair" id="pairingCard">
+  <div class="pair-image-slot" title="Gambar pairing dari konfigurasi Catbox">
+    <img id="pairingImage" src="" alt="Pairing visual" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
+    <div class="pair-image-empty">TAMBAH<br>GAMBAR</div>
+  </div>
+  <div class="pair-copy"><h2>Pairing Your Number</h2><p>Hubungkan nomor WhatsApp dengan pairing code.</p></div>
+  <div class="pair-action">PAIR →</div>
+</article></section>
+<section class="section pairing-list-section"><div class="section-head"><div class="section-title">WHATSAPP PAIRING</div><div class="section-sub" id="slotText">0 PENGGUNA</div></div><div class="total-near-list"><div class="total-copy"><span>TOTAL PENGGUNA</span><small>Jumlah pengguna yang tercatat pada daftar pairing.</small></div><strong id="totalCount">0</strong></div><div id="sessionList" class="box sessions"><div class="empty">Belum ada pengguna yang terhubung.</div></div></section>
+
+
+<section class="section" id="globalChatSection">
+  <div class="section-head">
+    <div class="section-title">GLOBAL CHAT</div>
+    <div class="section-sub"><span id="chatOnlineUser">LOGIN</span></div>
+  </div>
+  <div class="box global-chat">
+    <div id="chatMessages" class="chat-messages">
+      <div class="chat-empty">Belum ada pesan.</div>
+    </div>
+    <form id="chatForm" class="chat-form">
+      <input id="chatInput" maxlength="500" autocomplete="off" placeholder="Tulis pesan...">
+      <button type="submit" class="btn chat-send">KIRIM</button>
+    </form>
+  </div>
+</section>
+<div class="footer">XEVO BOT • V2 DASHBOARD • SYSTEM ONLINE</div></main>
+<div class="modal" id="modal"><div class="box modal-box"><button id="close" class="close">×</button><h2>Pair WhatsApp</h2><p>Masukkan nomor yang kamu miliki atau berwenang untuk ditautkan. Format: <b>628xxxxxxxxxx</b>.</p><input id="phone" inputmode="numeric" placeholder="628xxxxxxxxxx"><button id="pairBtn" class="btn">GENERATE PAIRING CODE</button><div id="result" class="result">Siap untuk pairing.</div>
+<div id="pairGuide" class="guide">
+  <h3>📖 PANDUAN SETELAH MENDAPATKAN CODE</h3>
+  <ol>
+    <li>Buka WhatsApp di nomor yang akan ditautkan.</li>
+    <li>Masuk ke <b>Setelan / Settings</b> → <b>Perangkat Tertaut</b>.</li>
+    <li>Pilih <b>Tautkan Perangkat</b>.</li>
+    <li>Pilih opsi <b>Tautkan dengan nomor telepon</b>.</li>
+    <li>Masukkan pairing code yang muncul di atas.</li>
+    <li>Tunggu sampai status session berubah menjadi <b>CONNECTED</b>.</li>
+  </ol>
+  <div class="hint">⚠️ Gunakan code segera. Jika gagal atau kedaluwarsa, generate code baru.</div>
+</div></div></div>
+<script>
+const $ = id => document.getElementById(id);
+let sessions = [];
+function esc(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function mask(n){n=String(n||'');return n.length>8?n.slice(0,4)+'••••'+n.slice(-4):n}
+function rt(s){s=Number(s)||0;const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60),x=Math.floor(s%60);return (d?d+'d ':'')+(h?h+'h ':'')+(m?m+'m ':'')+x+'s'}
+
+async function profile(){
+ try{
+  const d=await (await fetch('/api/dashboard-profile',{cache:'no-store'})).json();
+  if(!d.success)return;
+  $('developerName').textContent=d.developerName||'Developer';
+  $('botName').textContent=d.botName||'XevoBot';
+  $('botVersion').textContent=d.botVersion||'v1.0.0';
+  $('botMode').textContent=String(d.mode||'PUBLIC').toUpperCase();
+  $('botPrefix').textContent=d.prefix||'.';
+  $('runtime').textContent=rt(d.uptime);
+  $('profileSessions').textContent=d.sessionCount||0;
+  $('systemInfo').textContent=d.systemInfo||'ONLINE';
+  if(d.supportUrl){$('supportBtn').href=d.supportUrl;}
+  // Gunakan proxy internal agar gambar Catbox tetap dimuat dengan stabil.
+  const u=String(d.profileImageUrl||'').trim();
+  const pi=$('profileImage'), pf=$('profileFallback');
+  if(pi){
+    if(u){
+      pi.onload=()=>{ pi.style.display='block'; if(pf)pf.style.display='none'; };
+      pi.onerror=()=>{ pi.style.display='none'; if(pf)pf.style.display='grid'; };
+      pi.src='/api/image/profile?v='+Date.now();
+      pi.style.display='block';
+    } else {
+      pi.removeAttribute('src'); pi.style.display='none'; if(pf)pf.style.display='grid';
+    }
+  }
+  const pairing=String(d.pairingImageUrl||'').trim();
+  const pairingImg=$('pairingImage');
+  if(pairingImg){
+    const empty=pairingImg.nextElementSibling;
+    if(pairing){
+      pairingImg.onload=()=>{ pairingImg.style.display='block'; if(empty)empty.style.display='none'; };
+      pairingImg.onerror=()=>{ pairingImg.style.display='none'; if(empty)empty.style.display='grid'; };
+      pairingImg.src='/api/image/pairing?v='+Date.now();
+      pairingImg.style.display='block';
+    } else {
+      pairingImg.removeAttribute('src'); pairingImg.style.display='none'; if(empty)empty.style.display='grid';
+    }
+  }
+ }catch(e){console.error('Profile error',e)}
+}
+
+function renderSessions(){
+ const el=$('sessionList');
+ $('slotText').textContent=sessions.length+' PENGGUNA';
+ if(!sessions.length){el.innerHTML='<div class="empty">Belum ada pengguna yang terhubung.</div>';return;}
+ el.innerHTML=sessions.map((s,i)=>{
+  const c=!!s.connected;
+  return `<div class="session-row"><div class="sicon">📱</div><div><div class="phone">${esc(mask(s.number))}</div><div class="meta">SESSION ${String(i+1).padStart(2,'0')} • ${c?'ACTIVE':'PAIRING'}</div></div><div class="state ${c?'connected':'reconnecting'}">${c?'CONNECTED':'PAIRING'}</div></div>`;
+ }).join('');
+}
+
+async function loadSessions(){
+ try{
+  const d=await (await fetch('/api/sessions',{cache:'no-store'})).json();
+  if(!d.success)return;
+  sessions=Array.isArray(d.sessions)?d.sessions:[];
+  renderSessions();
+ }catch(e){console.error('Sessions error',e)}
+}
+
+async function stats(){
+ try{
+  const d=await (await fetch('/api/dashboard-stats',{cache:'no-store'})).json();
+  if(!d.success)return;
+  $('totalCount').textContent=d.total||0;
+ }catch(e){console.error('Stats error',e)}
+}
+
+$('pairingCard').addEventListener('click',()=>{
+ $('modal').classList.add('active');
+ $('phone').focus();
+});
+$('close').addEventListener('click',()=> $('modal').classList.remove('active'));
+$('modal').addEventListener('click',e=>{if(e.target===$('modal'))$('modal').classList.remove('active')});
+
+$('pairBtn').addEventListener('click',async()=>{
+ const number=$('phone').value.replace(/\D/g,'');
+ const result=$('result'), guide=$('pairGuide'), b=$('pairBtn');
+ guide.classList.remove('show');
+ if(!number){result.className='result error';result.textContent='Masukkan nomor terlebih dahulu.';return;}
+ b.disabled=true;b.textContent='MEMPROSES...';
+ try{
+  const r=await fetch('/api/pairing',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({number})});
+  const d=await r.json().catch(()=>({success:false,message:'Respons server tidak valid.'}));
+  if(!r.ok||!d.success)throw new Error(d.message||'Pairing gagal');
+  result.className='result';
+  result.innerHTML='<div class="code-title">PAIRING CODE</div><div class="code-value">'+esc(d.code)+'</div>';
+  guide.classList.add('show');
+  loadSessions();stats();
+ }catch(e){result.className='result error';result.textContent=e.message||'Pairing gagal.';}
+ finally{b.disabled=false;b.textContent='GENERATE PAIRING CODE';}
+});
+$('phone').addEventListener('keydown',e=>{if(e.key==='Enter')$('pairBtn').click()});
+profile();loadSessions();stats();
+setInterval(profile,5000);setInterval(loadSessions,5000);setInterval(stats,5000);
+</script>
+<style id="profile-pairing-redesign">
+/* Profile: teks sederhana tanpa card/kotak */
+.profile-simple{padding:4px 2px 2px;margin:0 0 2px;color:#292b32}
+.profile-kicker{font:800 9px 'Space Mono',monospace;letter-spacing:1.2px;color:#8b6a2a;margin-bottom:5px}
+.profile-name{font-size:29px;line-height:1;font-weight:900;letter-spacing:-1px}
+.profile-line{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:8px;font:800 10px 'Space Mono',monospace;color:#666970}
+.profile-line i{font-style:normal;color:#ff9f1c}
+.profile-meta{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.profile-meta span{border:1px solid #cfcfd2;background:#fff;padding:6px 8px;border-radius:4px;box-shadow:3px 3px 0 #111;color:#666;font:700 7px 'Space Mono',monospace}
+.profile-meta b{color:#25262b;margin-left:3px}
+/* Slot gambar khusus Pairing WhatsApp. Ganti file src/img/pairing.jpg untuk memasang gambar bawaan developer. */
+.pair{align-items:center}
+.pair-image-slot{width:58px;height:58px;flex:0 0 58px;border:2px solid #222;background:#f6f6f6;border-radius:6px;box-shadow:4px 4px 0 #111;overflow:hidden;position:relative}
+.pair-image-slot img{width:100%;height:100%;display:block;object-fit:cover}
+.pair-image-empty{position:absolute;inset:0;display:none;place-items:center;text-align:center;font:800 8px 'Space Mono',monospace;line-height:1.35;color:#777;background:#fff4db}
+.pair-action{border-radius:5px!important;box-shadow:3px 3px 0 #111}
+/* Tidak ada gradasi: warna dibuat flat/solid */
+body,.box,.stat,.pair,.sessions,.total-near-list,.guide,.modal-box,.support-btn,.btn,.pair-action,.online,.profile-meta span{background-image:none!important}
+.support-btn{background:#ff9f1c!important;color:#272727!important}
+.btn,.pair-action{background:#ff9f1c!important}
+@media(max-width:430px){.profile-name{font-size:26px}.profile-meta{gap:5px}.profile-meta span{font-size:6.5px;padding:5px 6px}.pair-image-slot{width:52px;height:52px;flex-basis:52px}.pair-copy h2{font-size:14px}.pair-copy p{font-size:8px}}
+</style>
+
+<script id="auth-chat-script">
+(function(){
+const authScreen=document.getElementById('authScreen');
+const authBtn=document.getElementById('authBtn');
+const authMsg=document.getElementById('authMsg');
+const app=document.querySelector('.app');
+const chatSection=document.getElementById('globalChatSection');
+const chatMessages=document.getElementById('chatMessages');
+const chatForm=document.getElementById('chatForm');
+const chatInput=document.getElementById('chatInput');
+const chatOnlineUser=document.getElementById('chatOnlineUser');
+let currentUser=null, chatTimer=null;
+
+function authMessage(text,error=false){
+  authMsg.textContent=text;
+  authMsg.className='auth-msg '+(error?'error':'success');
+}
+function setLoggedIn(user){
+  currentUser=user;
+  authScreen.classList.add('hidden');
+  app.classList.remove('locked');
+  if(chatSection) chatSection.style.display='block';
+  if(chatOnlineUser) chatOnlineUser.textContent='@'+user.username;
+  loadChat();
+  clearInterval(chatTimer); chatTimer=setInterval(loadChat,3000);
+}
+async function enterDashboard(){
+  authBtn.disabled=true;
+  authMessage('MEMBUKA DASHBOARD...');
+  try{
+    const r=await fetch('/api/web/guest',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    const d=await r.json().catch(()=>({success:false,message:'Respons server tidak valid.'}));
+    if(!r.ok||!d.success) throw new Error(d.message||'Gagal membuka dashboard.');
+    setLoggedIn(d.user);
+  }catch(e){
+    authMessage(e.message||'Server tidak dapat dihubungi.',true);
+  }finally{
+    authBtn.disabled=false;
+  }
+}
+authBtn.onclick=enterDashboard;
+
+async function checkLogin(){
+  try{
+    const r=await fetch('/api/web/me',{cache:'no-store'});
+    const d=await r.json();
+    if(d.success) setLoggedIn(d.user);
+    else {authScreen.classList.remove('hidden');app.classList.add('locked');if(chatSection)chatSection.style.display='none'}
+  }catch(e){
+    authScreen.classList.remove('hidden');
+    authMessage('Server tidak dapat dihubungi.',true);
+  }
+}
+function escChat(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function renderChat(messages){
+  if(!Array.isArray(messages)||!messages.length){chatMessages.innerHTML='<div class="chat-empty">Belum ada pesan. Jadilah yang pertama mengirim pesan.</div>';return}
+  chatMessages.innerHTML=messages.map(m=>{
+    const mine=currentUser&&m.userId===currentUser.id;
+    const t=new Date(m.time).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+    return `<div class="chat-row ${mine?'mine':''}"><div class="chat-meta"><b>${escChat(m.username)}</b><span>${t}</span></div><div class="chat-bubble">${escChat(m.message)}</div></div>`;
+  }).join('');
+  chatMessages.scrollTop=chatMessages.scrollHeight;
+}
+async function loadChat(){
+  if(!currentUser)return;
+  try{
+    const r=await fetch('/api/chat/messages',{cache:'no-store'});
+    if(r.status===401)return checkLogin();
+    const d=await r.json();if(d.success)renderChat(d.messages);
+  }catch(e){}
+}
+chatForm.onsubmit=async e=>{
+  e.preventDefault();
+  const message=chatInput.value.trim();if(!message)return;
+  const b=chatForm.querySelector('button');b.disabled=true;
+  try{
+    const r=await fetch('/api/chat/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message})});
+    const d=await r.json().catch(()=>({success:false,message:'Gagal'}));
+    if(!r.ok||!d.success)throw new Error(d.message||'Gagal mengirim.');
+    chatInput.value='';await loadChat();chatInput.focus();
+  }catch(e){authMessage(e.message||'Chat gagal dikirim.',true)}
+  finally{b.disabled=false}
+};
+checkLogin();
+})();
+</script>
+<style id="login-chat-additions">
+.auth-screen{position:fixed;inset:0;z-index:9999;background:#f5f6f8;display:flex;align-items:center;justify-content:center;padding:18px}
+.auth-screen.hidden{display:none}
+.auth-card{width:min(100%,390px);background:#fff;border:2px solid #303030;border-radius:8px;padding:25px;box-shadow:9px 10px 0 #262626}
+.auth-logo{font-size:36px;font-weight:900;letter-spacing:-2px;color:#2f3138}
+.auth-kicker{font:800 8px 'Space Mono',monospace;color:#8b8e96;margin-top:2px;letter-spacing:1.5px}
+.auth-card h2{font-size:22px;margin-top:22px}
+.auth-card p{font-size:11px;line-height:1.5;color:#747781;margin:7px 0 15px}
+.auth-card input{width:100%;padding:13px;margin-top:8px;border:2px solid #dedfe3;border-radius:6px;background:#f7f7f8;color:#2f3138;outline:none}
+.auth-card input:focus{border-color:#ff9f1c}
+.auth-card .btn{margin-top:13px}
+.auth-msg{min-height:18px;margin-top:10px;text-align:center;font:700 8px 'Space Mono',monospace;color:#2e9b68}
+.auth-msg.error{color:#d84c4c}
+.auth-switch{display:block;width:100%;margin-top:12px;background:none;border:0;color:#777;font:700 9px 'Space Mono',monospace;cursor:pointer}
+.app.locked{display:none}
+.global-chat{overflow:hidden}
+.chat-messages{height:330px;overflow-y:auto;padding:12px;background:#fafafa}
+.chat-empty{text-align:center;padding:45px 10px;color:#888;font:700 9px 'Space Mono',monospace}
+.chat-row{margin-bottom:11px;max-width:88%}
+.chat-row.mine{margin-left:auto}
+.chat-meta{display:flex;gap:7px;align-items:center;margin-bottom:4px;font:700 8px 'Space Mono',monospace;color:#777}
+.chat-meta b{color:#2f3138}
+.chat-meta span{font-size:7px;color:#aaa}
+.chat-bubble{display:inline-block;padding:9px 11px;border:1px solid #d9dce2;border-radius:7px;background:#fff;color:#303238;font-size:11px;line-height:1.45;word-break:break-word;box-shadow:3px 3px 0 #262626}
+.chat-row.mine .chat-bubble{background:#fff3d8;border-color:#e9c477}
+.chat-form{display:flex;gap:8px;padding:10px;border-top:1px solid #dedfe3;background:#fff}
+.chat-form input{min-width:0;flex:1;padding:11px;border:2px solid #dedfe3;border-radius:6px;outline:none;background:#f7f7f8}
+.chat-form input:focus{border-color:#ff9f1c}
+.chat-send{width:auto;margin:0;padding:10px 13px;box-shadow:5px 5px 0 #262626!important}
+@media(max-width:430px){.auth-card{padding:21px}.chat-messages{height:300px}.chat-row{max-width:94%}.chat-form{gap:6px}.chat-send{padding:10px 9px}}
+</style>
+
+</body></html>
+
+<!-- FINAL 3D SHADOW OVERRIDE: BLACK DEPTH -->
+<style>
+/* Semua efek kedalaman/3D dibuat hitam agar tidak lagi terlihat putih/abu terang */
+.box,.stat{
+  box-shadow:7px 9px 0 #111111, 0 16px 34px rgba(0,0,0,.14) !important;
+}
+.pair{
+  box-shadow:7px 9px 0 #111111, 0 14px 28px rgba(0,0,0,.14) !important;
+}
+.pair-icon{
+  box-shadow:4px 5px 0 #111111 !important;
+}
+.sessions{
+  box-shadow:7px 9px 0 #111111 !important;
+}
+.total-near-list{
+  box-shadow:5px 6px 0 #111111 !important;
+}
+.guide{
+  box-shadow:5px 6px 0 #111111 !important;
+}
+.support-btn{
+  box-shadow:7px 8px 0 #111111 !important;
+}
+/* Hilangkan highlight putih yang menyerupai sisi 3D */
+.profile,.info,.session-row,.pair,.total-near-list,.support-btn{
+  filter:none !important;
+}
+@media(max-width:430px){
+  .box,.stat,.pair,.sessions{box-shadow:5px 6px 0 #111111 !important;}
+  .support-btn{box-shadow:5px 6px 0 #111111 !important;}
+}
+</style>
+
+<!-- FINAL FLAT SAWERIA BUTTON & SHARP 3D THEME -->
+<style>
+/* Tema datar: tanpa gradasi sama sekali */
+body,
+.app,
+.profile,
+.box,
+.stat,
+.pair,
+.sessions,
+.session-row,
+.total-near-list,
+.support-btn,
+.info,
+.guide,
+.modal-box,
+.result,
+.mini,
+.tag,
+.online,
+.pair-icon,
+.support-icon,
+.pair-action,
+.btn,
+.search,
+.modal input,
+.code-value,
+.fill{
+  background-image:none !important;
+}
+
+body{background:#f3f2f0 !important;}
+.box,.profile,.stat,.sessions,.total-near-list,.guide,.modal-box{background:#ffffff !important;}
+.info,.mini,.session-row{background:#f7f7f7 !important;}
+
+/* Kotak/card lebih tegas, tidak oval */
+.box,.profile,.stat,.pair,.sessions,.total-near-list,.guide,.modal-box,.support-btn{
+  border-radius:8px !important;
+}
+.info,.mini,.tag,.online,.search,.modal input,.result,.code-value{
+  border-radius:6px !important;
+}
+.avatar,.avatar img,.fallback{border-radius:8px !important;}
+
+/* Semua efek 3D memakai hitam solid */
+.box,.profile,.stat,.pair,.sessions,.total-near-list,.guide,.modal-box,.support-btn{
+  box-shadow:8px 8px 0 #262626 !important;
+}
+.pair-icon,.support-icon{
+  box-shadow:4px 4px 0 #262626 !important;
+}
+
+/* Tombol gaya Saweria: datar, kotak, 3D hitam */
+button,.btn,.pair-action,#pairBtn{
+  border-radius:7px !important;
+  border:1px solid #292929 !important;
+  box-shadow:8px 8px 0 #262626 !important;
+  transform:translate(0,0);
+  transition:transform .12s ease,box-shadow .12s ease !important;
+}
+button:active,.btn:active,.pair-action:active,#pairBtn:active{
+  transform:translate(5px,5px) !important;
+  box-shadow:3px 3px 0 #262626 !important;
+}
+
+/* Tombol utama oranye Saweria tanpa gradasi */
+.pair-action,#pairBtn,.btn{
+  background:#ffb53d !important;
+  color:#292929 !important;
+}
+.pair-action:hover,#pairBtn:hover,.btn:hover{background:#ffc14d !important;}
+
+/* Pairing card dibuat flat */
+.pair{background:#ffffff !important;border-color:#303030 !important;}
+.pair-icon{background:#ffb53d !important;color:#292929 !important;border-color:#292929 !important;}
+
+/* Support tetap oranye datar, tanpa gradient */
+.support-btn{background:#ffb53d !important;border-color:#292929 !important;color:#292929 !important;}
+.support-btn:hover{background:#ffc14d !important;transform:translateY(-1px) !important;}
+.support-icon{background:#ffffff !important;color:#e79b1c !important;border-color:#292929 !important;}
+.support-go{color:#292929 !important;}
+
+/* Total pengguna flat */
+.total-near-list{background:#ffffff !important;border-color:#303030 !important;}
+.total-near-list strong{background:#ffb53d !important;border-color:#292929 !important;color:#292929 !important;border-radius:6px !important;}
+
+/* Hilangkan sisa shadow lembut putih/abu */
+.box,.stat,.pair,.sessions,.total-near-list,.guide,.support-btn,.modal-box{
+  filter:none !important;
+}
+
+@media(max-width:430px){
+  .box,.profile,.stat,.pair,.sessions,.total-near-list,.guide,.modal-box,.support-btn{border-radius:7px !important;box-shadow:6px 6px 0 #262626 !important;}
+  button,.btn,.pair-action,#pairBtn{box-shadow:6px 6px 0 #262626 !important;border-radius:6px !important;}
+}
+</style>
+
+<style id="catbox-image-style">
+.profile-header-row{display:flex;align-items:center;gap:12px;margin-bottom:2px}.profile-avatar-wrap{width:54px;height:54px;border:2px solid #111;background:#fff;box-shadow:4px 4px 0 #111;overflow:hidden;flex:none;position:relative}.profile-avatar-wrap img,.profile-avatar-wrap span{width:100%;height:100%;object-fit:cover}.profile-avatar-wrap span{display:grid;place-items:center;font-size:24px;background:#f4f4f4}.pair-image-slot img{width:100%;height:100%;object-fit:cover;display:none}.pair-image-empty{position:absolute;inset:0}.pair-image-slot{position:relative;overflow:hidden;background:#f3f3f3}@media(max-width:430px){.profile-avatar-wrap{width:46px;height:46px}.profile-header-row{gap:10px}}
+</style>

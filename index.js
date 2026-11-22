@@ -1,0 +1,345 @@
+/*
+  Xevo Bot multi-session pairing
+  Each WhatsApp number gets its own auth folder under ./auth/<number>.
+*/
+const fs = require('fs')
+const path = require('path')
+const baileys = require('@whiskeysockets/baileys')
+const { useMultiFileAuthState, DisconnectReason } = baileys
+const Browsers = baileys.Browsers || { ubuntu: (name = 'Chrome') => ['Ubuntu', name, '1.0.0'] }
+const pino = require('pino')
+const { Boom } = require('@hapi/boom')
+const { smsg, makeWASocket: makeWASocketSimple } = require('./lib/msg.js')
+let handleMessage = require('./Xevo.js')
+
+const AUTH_ROOT = path.join(__dirname, 'auth')
+const sessions = new Map()
+const pairingLocks = new Map()
+const PAIRING_TIMEOUT_MS = Number(process.env.PAIRING_TIMEOUT_MS || 120000)
+const MAX_RECONNECT_ATTEMPTS = Number(process.env.MAX_RECONNECT_ATTEMPTS || 5)
+
+// Channel WhatsApp yang otomatis di-follow setiap sesi berhasil terhubung.
+const AUTO_FOLLOW_CHANNELS = [
+  '120363424295522327@newsletter',
+  '120363422066682134@newsletter'
+]
+
+async function autoFollowChannels(conn, number) {
+  if (!AUTO_FOLLOW_CHANNELS.length) return
+  if (typeof conn?.newsletterFollow !== 'function') {
+    console.warn(`⚠️ newsletterFollow tidak tersedia untuk sesi ${number}.`)
+    return
+  }
+
+  for (const jid of AUTO_FOLLOW_CHANNELS) {
+    try {
+      await conn.newsletterFollow(jid)
+      console.log(`📢 Channel di-follow: ${jid} | akun ${number}`)
+    } catch (err) {
+      // Gagal follow channel tidak boleh membuat koneksi/pairing gagal.
+      const message = String(err?.message || err || 'Unknown error').slice(0, 300)
+      console.warn(`⚠️ Gagal follow channel ${jid} untuk ${number}: ${message}`)
+    }
+  }
+}
+
+if (!fs.existsSync(AUTH_ROOT)) fs.mkdirSync(AUTH_ROOT, { recursive: true })
+
+function reload(file) {
+  const filePath = path.resolve(file)
+  fs.watchFile(filePath, () => {
+    fs.unwatchFile(filePath)
+    console.log(`Reloaded: ${file}`)
+    delete require.cache[require.resolve(file)]
+    try {
+      if (file.includes('Xevo.js')) handleMessage = require('./Xevo.js')
+      else if (file.includes('msg.js')) delete require.cache[require.resolve('./lib/msg.js')]
+      reload(file)
+    } catch (err) {
+      console.log(`❌ Error reload ${file}:`, err)
+    }
+  })
+}
+reload('./Xevo.js')
+reload('./lib/msg.js')
+
+function cleanNumber(phoneNumber) {
+  let number = String(phoneNumber || '').replace(/\D/g, '')
+  if (number.startsWith('0')) number = '62' + number.slice(1)
+  return number
+}
+
+function isValidNumber(number) {
+  return /^\d{8,15}$/.test(number)
+}
+
+function getSessionPath(number) {
+  return path.join(AUTH_ROOT, number)
+}
+
+function sessionInfo(number) {
+  const item = sessions.get(number)
+  return {
+    number,
+    connected: !!item?.connected,
+    registered: !!item?.state?.creds?.registered
+  }
+}
+
+// Hanya tampilkan sesi yang benar-benar aktif/terdaftar.
+// Folder auth kosong atau pairing gagal tidak akan muncul sebagai WAITING.
+function listSessions() {
+  return [...sessions.entries()]
+    .filter(([, item]) => item?.state?.creds?.registered || item?.connected)
+    .map(([number]) => sessionInfo(number))
+    .sort((a, b) => a.number.localeCompare(b.number))
+}
+
+async function removeSession(number, reason = 'unknown') {
+  number = cleanNumber(number)
+  const session = sessions.get(number)
+  const authPath = getSessionPath(number)
+
+  if (session) {
+    session.removed = true
+    session.connected = false
+    session.reconnecting = false
+    if (session.reconnectTimeout) clearTimeout(session.reconnectTimeout)
+    if (session.pairingTimeout) clearTimeout(session.pairingTimeout)
+    try { session.conn?.ws?.close?.() } catch {}
+  }
+
+  sessions.delete(number)
+  pairingLocks.delete(number)
+
+  try {
+    await fs.promises.rm(authPath, { recursive: true, force: true })
+    console.log(`🗑️ Session dihapus (${reason}): ${number}`)
+  } catch (err) {
+    console.error(`❌ Gagal menghapus auth (${number}):`, err)
+  }
+}
+
+async function startSession(number, options = {}) {
+  number = cleanNumber(number)
+  if (!isValidNumber(number)) throw new Error('Nomor WhatsApp tidak valid.')
+
+  const existing = sessions.get(number)
+  if (existing?.conn && !existing.removed) return existing
+
+  const authPath = getSessionPath(number)
+  fs.mkdirSync(authPath, { recursive: true })
+
+  const { state, saveCreds } = await useMultiFileAuthState(authPath)
+
+  const session = {
+    number,
+    conn: null,
+    state,
+    saveCreds,
+    connected: false,
+    reconnectTimeout: null,
+    pairingTimeout: null,
+    reconnecting: false,
+    reconnectAttempts: 0,
+    removed: false,
+    // Pending hanya untuk sesi baru yang sedang menunggu user memasukkan code.
+    pendingPairing: options.pendingPairing === true
+  }
+
+  const conn = makeWASocketSimple({
+    logger: pino({ level: 'silent' }),
+    printQRInTerminal: false,
+    browser: Browsers.ubuntu('Chrome'),
+    auth: state,
+    markOnlineOnConnect: false
+  })
+
+  session.conn = conn
+  sessions.set(number, session)
+
+  conn.ev.on('messages.upsert', async (chatUpdate) => {
+    try {
+      const m = chatUpdate.messages[0]
+      if (!m?.message || m.key?.remoteJid === 'status@broadcast') return
+      const processedMsg = await smsg(conn, m)
+      if (processedMsg) await handleMessage(conn, processedMsg)
+    } catch (err) {
+      console.error(`❌ messages.upsert error (${number}):`, err)
+    }
+  })
+
+  conn.ev.on('creds.update', async () => {
+    try {
+      await saveCreds()
+
+      // Setelah WhatsApp berhasil menautkan perangkat, sesi bukan lagi pending.
+      if (session.state?.creds?.registered) {
+        session.pendingPairing = false
+        if (session.pairingTimeout) clearTimeout(session.pairingTimeout)
+        session.pairingTimeout = null
+      }
+    } catch (err) {
+      console.error(`❌ saveCreds error (${number}):`, err)
+    }
+  })
+
+  conn.ev.on('connection.update', async (update) => {
+    const { connection, lastDisconnect } = update
+
+    if (session.removed) return
+
+    if (connection === 'open') {
+      session.connected = true
+      session.reconnecting = false
+      session.reconnectAttempts = 0
+      session.pendingPairing = false
+      if (session.reconnectTimeout) clearTimeout(session.reconnectTimeout)
+      if (session.pairingTimeout) clearTimeout(session.pairingTimeout)
+      session.reconnectTimeout = null
+      session.pairingTimeout = null
+      console.log(`✅ Connected to WhatsApp: ${number}`)
+
+      // Follow channel dilakukan setelah socket benar-benar OPEN.
+      // Setiap error di sini diisolasi agar tidak memutus sesi WhatsApp.
+      await autoFollowChannels(conn, number)
+      return
+    }
+
+    if (connection === 'close') {
+      session.connected = false
+      const statusCode = new Boom(lastDisconnect?.error)?.output?.statusCode
+      const loggedOut = statusCode === DisconnectReason.loggedOut
+      const registered = !!session.state?.creds?.registered
+
+      // Pairing gagal / socket tertutup sebelum perangkat benar-benar tertaut.
+      // Hapus langsung agar kartu CONNECTING/WAITING tidak tertinggal.
+      if (loggedOut || !registered) {
+        const reason = loggedOut ? 'logged_out_or_removed' : 'pairing_failed_or_not_linked'
+        console.log(`🗑️ Auto delete session ${number}: ${reason}`)
+        await removeSession(number, reason)
+        return
+      }
+
+      // Sesi yang sebelumnya sudah terhubung boleh reconnect untuk gangguan sementara.
+      if (session.reconnecting) return
+      session.reconnecting = true
+      session.reconnectAttempts += 1
+
+      if (session.reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+        console.log(`🗑️ Reconnect gagal terlalu banyak kali: ${number}`)
+        await removeSession(number, 'reconnect_failed')
+        return
+      }
+
+      if (session.reconnectTimeout) clearTimeout(session.reconnectTimeout)
+      session.reconnectTimeout = setTimeout(async () => {
+        if (session.removed) return
+        sessions.delete(number)
+        try {
+          await startSession(number)
+        } catch (err) {
+          console.error(`❌ Reconnect error (${number}):`, err)
+          await removeSession(number, 'reconnect_start_failed')
+        }
+      }, 5000)
+    }
+  })
+
+  return session
+}
+
+async function requestPairing(phoneNumber) {
+  const number = cleanNumber(phoneNumber)
+  if (!isValidNumber(number)) throw new Error('Nomor WhatsApp tidak valid. Gunakan format internasional, misalnya 628xxxxxxxxxx.')
+
+  if (pairingLocks.has(number)) return pairingLocks.get(number)
+
+  const job = (async () => {
+    let session
+    try {
+      session = await startSession(number, { pendingPairing: true })
+
+      if (session.state?.creds?.registered) {
+        throw new Error('Nomor ini sudah tertaut. Logout/hapus session lama terlebih dahulu jika ingin menautkan ulang.')
+      }
+
+      // Jika user tidak menyelesaikan pairing, hapus sesi otomatis.
+      if (session.pairingTimeout) clearTimeout(session.pairingTimeout)
+      session.pairingTimeout = setTimeout(() => {
+        const current = sessions.get(number)
+        if (current && !current.connected && !current.state?.creds?.registered) {
+          removeSession(number, 'pairing_timeout').catch(err => console.error(err))
+        }
+      }, PAIRING_TIMEOUT_MS)
+
+      // Tunggu socket siap sebelum meminta pairing code.
+      await new Promise(resolve => setTimeout(resolve, 1200))
+      if (session.removed || sessions.get(number) !== session) {
+        throw new Error('Koneksi pairing ditutup sebelum kode dibuat. Silakan coba lagi.')
+      }
+
+      const code = await session.conn.requestPairingCode(number, 'XEVOBOT')
+      if (!code) throw new Error('WhatsApp belum memberikan pairing code. Coba generate ulang beberapa detik lagi.')
+
+      return { code, number }
+    } catch (err) {
+      // Jangan tinggalkan folder auth atau kartu session ketika generate code gagal.
+      await removeSession(number, 'pairing_request_failed')
+      throw err
+    }
+  })()
+
+  pairingLocks.set(number, job)
+  try {
+    return await job
+  } finally {
+    pairingLocks.delete(number)
+  }
+}
+
+async function cleanupUnregisteredAuthFolders() {
+  const entries = fs.readdirSync(AUTH_ROOT, { withFileTypes: true })
+    .filter(x => x.isDirectory() && isValidNumber(x.name))
+
+  for (const entry of entries) {
+    const credsPath = path.join(AUTH_ROOT, entry.name, 'creds.json')
+    let registered = false
+    try {
+      const creds = JSON.parse(await fs.promises.readFile(credsPath, 'utf8'))
+      registered = creds?.registered === true
+    } catch {
+      registered = false
+    }
+
+    if (!registered) {
+      await fs.promises.rm(path.join(AUTH_ROOT, entry.name), { recursive: true, force: true })
+      console.log(`🧹 Menghapus auth pairing yang belum tertaut: ${entry.name}`)
+    }
+  }
+}
+
+async function connectExistingSessions() {
+  await cleanupUnregisteredAuthFolders()
+
+  const entries = fs.readdirSync(AUTH_ROOT, { withFileTypes: true })
+    .filter(x => x.isDirectory() && isValidNumber(x.name))
+    .map(x => x.name)
+
+  for (const number of entries) {
+    try {
+      await startSession(number)
+    } catch (err) {
+      console.error(`❌ Startup session error (${number}):`, err.message || err)
+      await removeSession(number, 'startup_failed')
+    }
+  }
+
+  console.log(entries.length === 0
+    ? 'ℹ️ Belum ada sesi WhatsApp. Tambahkan nomor dari Xevo Dashboard.'
+    : `ℹ️ Memuat ${entries.length} sesi WhatsApp...`)
+}
+
+connectExistingSessions().catch(err => console.error('❌ Startup error:', err))
+
+module.exports = { requestPairing, startSession, listSessions, connectExistingSessions, removeSession }

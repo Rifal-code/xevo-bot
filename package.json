@@ -1,0 +1,20 @@
+{
+  "name": "xevo-bot-baileys-adapted",
+  "version": "1.0.0",
+  "author": "LevviCode",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.js",
+    "bot": "node index.js",
+    "engine": "node index.js"
+  },
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "^6.7.24",
+    "pino": "^8.21.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

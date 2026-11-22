@@ -1,0 +1,8 @@
+config.local.json
+cloudflared
+node_modules/
+auth/
+database/
+*.tmp
+.env
+.env.*
