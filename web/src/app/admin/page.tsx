@@ -4,6 +4,8 @@ import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useToast } from "@/components/ui/toast";
 import {
   Server,
   Cpu,
@@ -53,6 +55,9 @@ export default function AdminDashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
+
+  const [confirmSession, setConfirmSession] = useState<AdminSession | null>(null);
 
   const fetchData = async () => {
     try {
@@ -87,8 +92,10 @@ export default function AdminDashboardPage() {
     return () => clearInterval(timer);
   }, []);
 
-  const handleDisconnect = async (sessionId: string) => {
-    if (!confirm(`Yakin ingin memutus darurat sesi ${sessionId}?`)) return;
+  const handleDisconnect = async () => {
+    if (!confirmSession) return;
+    const sessionId = confirmSession.id;
+    const phoneDisplay = confirmSession.phoneMasked || sessionId;
 
     try {
       setActionLoading(sessionId);
@@ -101,9 +108,11 @@ export default function AdminDashboardPage() {
       if (!res.ok || !data.success) {
         throw new Error(data.message || "Gagal memutus sesi.");
       }
+      toast.success(`Sesi darurat ${phoneDisplay} berhasil diputuskan.`);
+      setConfirmSession(null);
       await fetchData();
     } catch (err: any) {
-      alert(err.message || "Aksi gagal dijalankan.");
+      toast.error(err.message || "Aksi darurat gagal dijalankan.");
     } finally {
       setActionLoading(null);
     }
@@ -312,7 +321,7 @@ export default function AdminDashboardPage() {
                       variant="danger"
                       size="sm"
                       disabled={actionLoading === sess.id}
-                      onClick={() => handleDisconnect(sess.id)}
+                      onClick={() => setConfirmSession(sess)}
                       className="w-full flex items-center justify-center gap-1.5 min-h-[42px] touch-manipulation"
                     >
                       <PowerOff className="w-3.5 h-3.5 shrink-0" />
@@ -354,7 +363,7 @@ export default function AdminDashboardPage() {
                             variant="danger"
                             size="sm"
                             disabled={actionLoading === sess.id}
-                            onClick={() => handleDisconnect(sess.id)}
+                            onClick={() => setConfirmSession(sess)}
                             className="flex items-center gap-1.5 ml-auto touch-manipulation"
                           >
                             <PowerOff className="w-3.5 h-3.5 shrink-0" />
@@ -372,6 +381,23 @@ export default function AdminDashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Admin Emergency Disconnect Dialog */}
+      <ConfirmDialog
+        isOpen={!!confirmSession}
+        onClose={() => {
+          if (!actionLoading) setConfirmSession(null);
+        }}
+        onConfirm={handleDisconnect}
+        loading={!!actionLoading}
+        variant="danger"
+        title="Putus Darurat Sesi WhatsApp?"
+        description={`AKSI ROOT ADMIN: Memutus paksa soket Baileys untuk nomor ${
+          confirmSession?.phoneMasked || ""
+        } (Ref: ${confirmSession?.engineRef || ""}). Koneksi WhatsApp akan langsung dihentikan.`}
+        confirmText="YA, PUTUSKAN DARURAT"
+        cancelText="BATALKAN"
+      />
     </div>
   );
 }

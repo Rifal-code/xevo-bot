@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useToast } from "@/components/ui/toast";
 import { RefreshCw, Trash2, PowerOff, Plus, AlertCircle } from "lucide-react";
 
 interface SessionItem {
@@ -17,11 +19,24 @@ interface SessionItem {
   createdAt?: string;
 }
 
+interface DialogState {
+  isOpen: boolean;
+  type: "disconnect" | "delete";
+  session: SessionItem | null;
+}
+
 export default function SessionsPage() {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const toast = useToast();
+
+  const [dialogState, setDialogState] = useState<DialogState>({
+    isOpen: false,
+    type: "disconnect",
+    session: null,
+  });
 
   const fetchSessions = async () => {
     setLoading(true);
@@ -44,37 +59,59 @@ export default function SessionsPage() {
     fetchSessions();
   }, []);
 
-  const handleDisconnect = async (sessionRef: string) => {
-    if (!confirm("Apakah Anda yakin ingin memutuskan koneksi sesi ini?")) return;
-    setActionLoading(sessionRef);
-    try {
-      const res = await fetch(`/api/sessions/${sessionRef}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "disconnect" }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message || "Gagal memutus sesi");
-      await fetchSessions();
-    } catch (err: any) {
-      alert(err?.message || "Gagal memutus koneksi.");
-    } finally {
-      setActionLoading(null);
-    }
+  const openDisconnectDialog = (session: SessionItem) => {
+    setDialogState({
+      isOpen: true,
+      type: "disconnect",
+      session,
+    });
   };
 
-  const handleDelete = async (sessionRef: string) => {
-    if (!confirm("PERINGATAN: Menghapus sesi akan menghapus kredensial secara permanen. Lanjutkan?")) return;
+  const openDeleteDialog = (session: SessionItem) => {
+    setDialogState({
+      isOpen: true,
+      type: "delete",
+      session,
+    });
+  };
+
+  const closeDialog = () => {
+    if (actionLoading) return;
+    setDialogState({
+      isOpen: false,
+      type: "disconnect",
+      session: null,
+    });
+  };
+
+  const handleConfirmAction = async () => {
+    if (!dialogState.session) return;
+    const sessionRef = dialogState.session.engineSessionRef;
+    const phoneDisplay = dialogState.session.phoneNumberMasked || sessionRef;
+
     setActionLoading(sessionRef);
     try {
-      const res = await fetch(`/api/sessions/${sessionRef}`, {
-        method: "DELETE",
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message || "Gagal menghapus sesi");
+      if (dialogState.type === "disconnect") {
+        const res = await fetch(`/api/sessions/${sessionRef}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "disconnect" }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error?.message || "Gagal memutus sesi");
+        toast.success(`Koneksi sesi ${phoneDisplay} berhasil diputuskan.`);
+      } else {
+        const res = await fetch(`/api/sessions/${sessionRef}`, {
+          method: "DELETE",
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error?.message || "Gagal menghapus sesi");
+        toast.success(`Sesi ${phoneDisplay} berhasil dihapus secara permanen.`);
+      }
+      closeDialog();
       await fetchSessions();
     } catch (err: any) {
-      alert(err?.message || "Gagal menghapus sesi.");
+      toast.error(err?.message || "Terjadi kesalahan saat memproses permintaan.");
     } finally {
       setActionLoading(null);
     }
@@ -175,7 +212,7 @@ export default function SessionsPage() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => handleDisconnect(session.engineSessionRef)}
+                  onClick={() => openDisconnectDialog(session)}
                   disabled={actionLoading === session.engineSessionRef || !session.connected}
                   className="flex-1 text-[11px] min-h-[42px] touch-manipulation"
                   title="Putus koneksi socket"
@@ -187,7 +224,7 @@ export default function SessionsPage() {
                 <Button
                   variant="danger"
                   size="sm"
-                  onClick={() => handleDelete(session.engineSessionRef)}
+                  onClick={() => openDeleteDialog(session)}
                   disabled={actionLoading === session.engineSessionRef}
                   className="flex-1 text-[11px] min-h-[42px] touch-manipulation"
                   title="Hapus sesi permanen"
@@ -200,6 +237,33 @@ export default function SessionsPage() {
           ))}
         </div>
       )}
+
+      {/* Professional Confirmation Modal Dialog */}
+      <ConfirmDialog
+        isOpen={dialogState.isOpen}
+        onClose={closeDialog}
+        onConfirm={handleConfirmAction}
+        loading={!!actionLoading}
+        variant={dialogState.type === "delete" ? "danger" : "warning"}
+        title={
+          dialogState.type === "delete"
+            ? "Hapus Sesi Secara Permanen?"
+            : "Putus Koneksi Sesi WhatsApp?"
+        }
+        description={
+          dialogState.type === "delete"
+            ? `PERINGATAN: Kredensial autentikasi WhatsApp untuk nomor ${
+                dialogState.session?.phoneNumberMasked || ""
+              } akan dihapus secara permanen dari server. Anda harus melakukan pairing ulang jika ingin menghubungkannya kembali.`
+            : `Sesi WhatsApp untuk nomor ${
+                dialogState.session?.phoneNumberMasked || ""
+              } akan diputuskan dari WhatsApp Engine. Nomor ini tidak akan memproses pesan bot sampai disambungkan kembali.`
+        }
+        confirmText={
+          dialogState.type === "delete" ? "YA, HAPUS PERMANEN" : "YA, PUTUSKAN KONEKSI"
+        }
+        cancelText="BATAL"
+      />
     </div>
   );
 }

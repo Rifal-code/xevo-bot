@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Navbar } from "@/components/layout/navbar";
 import { Sidebar } from "@/components/layout/sidebar";
 import { NavProvider } from "@/components/layout/nav-context";
+import { ToastProvider } from "@/components/ui/toast";
 
 export default async function DashboardLayout({
   children,
@@ -21,16 +22,18 @@ export default async function DashboardLayout({
   }
 
   return (
-    <NavProvider>
-      <div className="min-h-screen flex flex-col bg-xevo-bg overflow-x-hidden">
-        <Navbar showMenuToggle={true} />
-        <div className="flex-1 flex w-full">
-          <Sidebar />
-          <main className="flex-1 min-w-0 p-3.5 sm:p-6 lg:p-8 max-w-6xl mx-auto w-full overflow-x-hidden">
-            {children}
-          </main>
+    <ToastProvider>
+      <NavProvider>
+        <div className="min-h-screen flex flex-col bg-xevo-bg overflow-x-hidden">
+          <Navbar showMenuToggle={true} />
+          <div className="flex-1 flex w-full">
+            <Sidebar />
+            <main className="flex-1 min-w-0 p-3.5 sm:p-6 lg:p-8 max-w-6xl mx-auto w-full overflow-x-hidden">
+              {children}
+            </main>
+          </div>
         </div>
-      </div>
-    </NavProvider>
+      </NavProvider>
+    </ToastProvider>
   );
 }
