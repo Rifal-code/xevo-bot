@@ -1,14 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Copy, Check, Smartphone, Clock, ShieldCheck, AlertCircle } from "lucide-react";
 
-export default function PairingPage() {
+function PairingContent() {
+  const searchParams = useSearchParams();
   const [phoneNumber, setPhoneNumber] = useState("");
   const [loading, setLoading] = useState(false);
   const [pairingCode, setPairingCode] = useState<string | null>(null);
@@ -16,6 +18,13 @@ export default function PairingPage() {
   const [error, setError] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(120);
   const [isSuccess, setIsSuccess] = useState(false);
+
+  useEffect(() => {
+    const num = searchParams.get("number");
+    if (num && !phoneNumber) {
+      setPhoneNumber(num);
+    }
+  }, [searchParams]);
 
   // Countdown timer for pairing code validity
   useEffect(() => {
@@ -270,5 +279,13 @@ export default function PairingPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function PairingPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center font-mono text-xs text-xevo-muted">Memuat halaman pairing...</div>}>
+      <PairingContent />
+    </Suspense>
   );
 }

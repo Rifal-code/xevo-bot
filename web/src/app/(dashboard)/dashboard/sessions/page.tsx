@@ -99,7 +99,7 @@ export default function SessionsPage() {
       });
       const json = await res.json();
 
-      if (json.needPairing || !res.ok) {
+      if (json.needPairing || !res.ok || !json.success) {
         // Kredensial tidak ada di disk (terhapus saat diputus sebelumnya)
         setDialogState({
           isOpen: true,
@@ -112,7 +112,11 @@ export default function SessionsPage() {
       toast.success(`Sesi ${phoneDisplay} berhasil disambungkan kembali!`);
       await fetchSessions();
     } catch (err: any) {
-      toast.error(err?.message || "Gagal menyambungkan kembali sesi.");
+      setDialogState({
+        isOpen: true,
+        type: "need_pairing",
+        session,
+      });
     } finally {
       setActionLoading(null);
     }
@@ -124,8 +128,9 @@ export default function SessionsPage() {
     const phoneDisplay = dialogState.session.phoneNumberMasked || sessionRef;
 
     if (dialogState.type === "need_pairing") {
+      const targetNum = dialogState.session.engineSessionRef;
       closeDialog();
-      router.push("/dashboard/pairing");
+      router.push(`/dashboard/pairing?number=${targetNum}`);
       return;
     }
 
