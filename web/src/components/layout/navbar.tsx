@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 export function Navbar() {
   const pathname = usePathname();
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function getUser() {
@@ -17,13 +18,11 @@ export function Navbar() {
         const {
           data: { user },
         } = await supabase.auth.getUser();
-        if (user?.email) {
-          setUserEmail(user.email);
-        } else {
-          setUserEmail(null);
-        }
+        setUserEmail(user?.email ?? null);
       } catch {
         setUserEmail(null);
+      } finally {
+        setLoading(false);
       }
     }
     getUser();
@@ -57,7 +56,9 @@ export function Navbar() {
           <span className="hidden sm:inline">ENGINE CONNECTED</span>
         </div>
 
-        {userEmail ? (
+        {loading ? (
+          <div className="w-16 h-7 rounded bg-xevo-panel2 border border-xevo-border animate-pulse" />
+        ) : userEmail ? (
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded bg-xevo-panel2 border border-xevo-border text-xs font-mono text-zinc-300">
               <User className="w-3.5 h-3.5 text-xevo-red" />
