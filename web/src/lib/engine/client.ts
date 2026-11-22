@@ -126,6 +126,12 @@ export class EngineClient {
       method: "POST",
     });
   }
+
+  async reconnectSession(sessionRef: string): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>(`/api/sessions/${sessionRef}/reconnect`, {
+      method: "POST",
+    });
+  }
 }
 
 export const engineClient = new EngineClient();

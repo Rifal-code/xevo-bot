@@ -95,6 +95,44 @@ function listSessions() {
     .sort((a, b) => a.number.localeCompare(b.number))
 }
 
+async function disconnectSession(number) {
+  number = cleanNumber(number)
+  const session = sessions.get(number)
+
+  if (session) {
+    session.removed = true
+    session.connected = false
+    session.reconnecting = false
+    if (session.reconnectTimeout) clearTimeout(session.reconnectTimeout)
+    if (session.pairingTimeout) clearTimeout(session.pairingTimeout)
+    try { session.conn?.ws?.close?.() } catch {}
+  }
+
+  sessions.delete(number)
+  pairingLocks.delete(number)
+  console.log(`🔌 Sesi diputus sementara (kredensial auth dipertahankan): ${number}`)
+}
+
+async function reconnectSession(number) {
+  number = cleanNumber(number)
+  const authPath = getSessionPath(number)
+  const credsPath = path.join(authPath, 'creds.json')
+
+  let hasCreds = false
+  try {
+    const creds = JSON.parse(await fs.promises.readFile(credsPath, 'utf8'))
+    hasCreds = creds?.registered === true
+  } catch {
+    hasCreds = false
+  }
+
+  if (!hasCreds) {
+    throw new Error('Kredensial sesi tidak ditemukan di server. Silakan tautkan ulang nomor.')
+  }
+
+  return await startSession(number)
+}
+
 async function removeSession(number, reason = 'unknown') {
   number = cleanNumber(number)
   const session = sessions.get(number)
@@ -342,4 +380,4 @@ async function connectExistingSessions() {
 
 connectExistingSessions().catch(err => console.error('❌ Startup error:', err))
 
-module.exports = { requestPairing, startSession, listSessions, connectExistingSessions, removeSession }
+module.exports = { requestPairing, startSession, listSessions, connectExistingSessions, removeSession, disconnectSession, reconnectSession }

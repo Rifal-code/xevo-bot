@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
-import { RefreshCw, Trash2, PowerOff, Plus, AlertCircle } from "lucide-react";
+import { RefreshCw, Trash2, PowerOff, Plus, AlertCircle, Zap } from "lucide-react";
 
 interface SessionItem {
   id?: string;
@@ -21,11 +22,12 @@ interface SessionItem {
 
 interface DialogState {
   isOpen: boolean;
-  type: "disconnect" | "delete";
+  type: "disconnect" | "delete" | "need_pairing";
   session: SessionItem | null;
 }
 
 export default function SessionsPage() {
+  const router = useRouter();
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -84,10 +86,48 @@ export default function SessionsPage() {
     });
   };
 
+  const handleReconnect = async (session: SessionItem) => {
+    const sessionRef = session.engineSessionRef;
+    const phoneDisplay = session.phoneNumberMasked || sessionRef;
+
+    setActionLoading(sessionRef);
+    try {
+      const res = await fetch(`/api/sessions/${sessionRef}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reconnect" }),
+      });
+      const json = await res.json();
+
+      if (json.needPairing || !res.ok) {
+        // Kredensial tidak ada di disk (terhapus saat diputus sebelumnya)
+        setDialogState({
+          isOpen: true,
+          type: "need_pairing",
+          session,
+        });
+        return;
+      }
+
+      toast.success(`Sesi ${phoneDisplay} berhasil disambungkan kembali!`);
+      await fetchSessions();
+    } catch (err: any) {
+      toast.error(err?.message || "Gagal menyambungkan kembali sesi.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleConfirmAction = async () => {
     if (!dialogState.session) return;
     const sessionRef = dialogState.session.engineSessionRef;
     const phoneDisplay = dialogState.session.phoneNumberMasked || sessionRef;
+
+    if (dialogState.type === "need_pairing") {
+      closeDialog();
+      router.push("/dashboard/pairing");
+      return;
+    }
 
     setActionLoading(sessionRef);
     try {
@@ -209,17 +249,31 @@ export default function SessionsPage() {
               </CardHeader>
 
               <CardContent className="border-t border-xevo-border pt-4 mt-2 flex items-center justify-between gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => openDisconnectDialog(session)}
-                  disabled={actionLoading === session.engineSessionRef || !session.connected}
-                  className="flex-1 text-[11px] min-h-[42px] touch-manipulation"
-                  title="Putus koneksi socket"
-                >
-                  <PowerOff className="w-3.5 h-3.5 mr-1 shrink-0" />
-                  <span>PUTUS</span>
-                </Button>
+                {session.connected ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => openDisconnectDialog(session)}
+                    disabled={actionLoading === session.engineSessionRef}
+                    className="flex-1 text-[11px] min-h-[42px] touch-manipulation"
+                    title="Putus koneksi socket"
+                  >
+                    <PowerOff className="w-3.5 h-3.5 mr-1 shrink-0" />
+                    <span>PUTUS</span>
+                  </Button>
+                ) : (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => handleReconnect(session)}
+                    disabled={actionLoading === session.engineSessionRef}
+                    className="flex-1 text-[11px] min-h-[42px] touch-manipulation bg-emerald-700 hover:bg-emerald-600 border-emerald-500 shadow-none hover:shadow-xevo-btn"
+                    title="Sambungkan kembali nomor ini"
+                  >
+                    <Zap className="w-3.5 h-3.5 mr-1 shrink-0" />
+                    <span>SAMBUNGKAN</span>
+                  </Button>
+                )}
 
                 <Button
                   variant="danger"
@@ -244,23 +298,39 @@ export default function SessionsPage() {
         onClose={closeDialog}
         onConfirm={handleConfirmAction}
         loading={!!actionLoading}
-        variant={dialogState.type === "delete" ? "danger" : "warning"}
+        variant={
+          dialogState.type === "delete"
+            ? "danger"
+            : dialogState.type === "need_pairing"
+            ? "warning"
+            : "warning"
+        }
         title={
           dialogState.type === "delete"
             ? "Hapus Sesi Secara Permanen?"
+            : dialogState.type === "need_pairing"
+            ? "Tautkan Ulang WhatsApp?"
             : "Putus Koneksi Sesi WhatsApp?"
         }
         description={
           dialogState.type === "delete"
             ? `PERINGATAN: Kredensial autentikasi WhatsApp untuk nomor ${
                 dialogState.session?.phoneNumberMasked || ""
-              } akan dihapus secara permanen dari server. Anda harus melakukan pairing ulang jika ingin menghubungkannya kembali.`
+              } akan dihapus secara permanen dari server.`
+            : dialogState.type === "need_pairing"
+            ? `Sesi untuk nomor ${
+                dialogState.session?.phoneNumberMasked || ""
+              } sebelumnya telah diputus. Untuk mengaktifkannya kembali, silakan buat kode pairing 8 digit baru.`
             : `Sesi WhatsApp untuk nomor ${
                 dialogState.session?.phoneNumberMasked || ""
               } akan diputuskan dari WhatsApp Engine. Nomor ini tidak akan memproses pesan bot sampai disambungkan kembali.`
         }
         confirmText={
-          dialogState.type === "delete" ? "YA, HAPUS PERMANEN" : "YA, PUTUSKAN KONEKSI"
+          dialogState.type === "delete"
+            ? "YA, HAPUS PERMANEN"
+            : dialogState.type === "need_pairing"
+            ? "BUAT KODE PAIRING →"
+            : "YA, PUTUSKAN KONEKSI"
         }
         cancelText="BATAL"
       />

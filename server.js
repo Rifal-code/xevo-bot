@@ -4,7 +4,7 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const crypto = require('crypto')
-const { requestPairing, listSessions, removeSession } = require('./index.js')
+const { requestPairing, listSessions, removeSession, disconnectSession, reconnectSession } = require('./index.js')
 
 const PORT = Number(process.env.PORT) || 5004
 const PUBLIC = path.join(__dirname, 'public')
@@ -246,10 +246,18 @@ const server = http.createServer(async (req, res) => {
       return send(res, 400, JSON.stringify({ success: false, message: 'Nomor sesi tidak valid.' }))
     }
     try {
-      await removeSession(sessionNum, action === 'disconnect' ? 'user_disconnect' : 'user_delete')
-      return send(res, 200, JSON.stringify({ success: true, message: 'Sesi berhasil dihapus.' }))
+      if (action === 'reconnect') {
+        await reconnectSession(sessionNum)
+        return send(res, 200, JSON.stringify({ success: true, message: 'Sesi berhasil disambungkan kembali.' }))
+      } else if (action === 'disconnect') {
+        await disconnectSession(sessionNum)
+        return send(res, 200, JSON.stringify({ success: true, message: 'Sesi berhasil diputus.' }))
+      } else {
+        await removeSession(sessionNum, 'user_delete')
+        return send(res, 200, JSON.stringify({ success: true, message: 'Sesi berhasil dihapus.' }))
+      }
     } catch (err) {
-      return send(res, 500, JSON.stringify({ success: false, message: err?.message || 'Gagal menghapus sesi.' }))
+      return send(res, 500, JSON.stringify({ success: false, message: err?.message || 'Gagal memproses sesi.' }))
     }
   }
 

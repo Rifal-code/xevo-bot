@@ -74,6 +74,28 @@ export async function POST(
       });
     }
 
+    if (action === "reconnect") {
+      try {
+        const result = await engineClient.reconnectSession(sessionId);
+        return NextResponse.json({
+          success: true,
+          data: result,
+        });
+      } catch (err: any) {
+        return NextResponse.json(
+          {
+            success: false,
+            needPairing: true,
+            error: {
+              code: "CREDS_MISSING",
+              message: err?.message || "Kredensial auth sesi tidak ditemukan. Silakan hubungkan ulang melalui Pairing.",
+            },
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     return NextResponse.json(
       { success: false, error: { message: "Aksi tidak dikenal" } },
       { status: 400 }
