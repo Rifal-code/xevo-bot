@@ -55,16 +55,16 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center p-3 sm:p-4 bg-xevo-bg">
+      <Card className="w-full max-w-md mx-auto shadow-xevo-brutal">
         <CardHeader className="text-center">
           <div className="mx-auto w-12 h-12 rounded-xl bg-[#200b0e] border border-xevo-border flex items-center justify-center text-2xl mb-2">
             ⚡
           </div>
-          <CardTitle className="justify-center text-2xl font-black">
+          <CardTitle className="justify-center text-xl sm:text-2xl font-black">
             DAFTAR AKUN PECADO
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-xs">
             Daftar untuk mengelola pairing WhatsApp di server terisolasi
           </CardDescription>
         </CardHeader>
@@ -104,14 +104,14 @@ export default function RegisterPage() {
               required
             />
 
-            <Button type="submit" className="w-full mt-2" disabled={loading}>
+            <Button type="submit" size="lg" className="w-full mt-2" disabled={loading}>
               {loading ? "MENDAFTARKAN..." : "DAFTAR SEKARANG →"}
             </Button>
           </form>
 
           <div className="mt-6 text-center text-xs font-mono text-xevo-muted">
             Sudah punya akun?{" "}
-            <Link href="/login" className="text-xevo-red hover:underline font-bold">
+            <Link href="/login" className="text-xevo-red hover:underline font-bold inline-block py-1 touch-manipulation">
               Login di Sini
             </Link>
           </div>

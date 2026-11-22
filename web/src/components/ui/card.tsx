@@ -9,7 +9,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "bg-xevo-panel border-2 border-xevo-border rounded-xl shadow-xevo-brutal p-6",
+        "bg-xevo-panel border-2 border-xevo-border rounded-xl shadow-xevo-brutal p-4 sm:p-6 transition-all",
         className
       )}
       {...props}

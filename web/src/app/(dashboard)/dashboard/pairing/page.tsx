@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Check, QrCode, Smartphone, Clock, ArrowRight, ShieldCheck, AlertCircle } from "lucide-react";
+import { Copy, Check, Smartphone, Clock, ShieldCheck, AlertCircle } from "lucide-react";
 
 export default function PairingPage() {
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -92,13 +92,13 @@ export default function PairingPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8">
+    <div className="max-w-3xl mx-auto space-y-6 sm:space-y-8 w-full">
       <div>
-        <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
+        <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2 flex-wrap">
           <span>Pairing WhatsApp</span>
           <Badge variant="pairing">PUBLIC PAIRING</Badge>
         </h1>
-        <p className="text-xs font-mono text-xevo-muted mt-1">
+        <p className="text-xs font-mono text-xevo-muted mt-1 leading-relaxed">
           Hubungkan nomor WhatsApp Anda ke Engine menggunakan kode pairing 8 karakter tanpa scan QR.
         </p>
       </div>
@@ -106,11 +106,11 @@ export default function PairingPage() {
       {/* Main Pairing Card */}
       <Card>
         <CardHeader>
-          <CardTitle>
-            <Smartphone className="w-5 h-5 text-xevo-red" />
+          <CardTitle className="text-base sm:text-lg">
+            <Smartphone className="w-5 h-5 text-xevo-red shrink-0" />
             <span>Masukkan Nomor WhatsApp</span>
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-xs">
             Gunakan format internasional, misalnya <b>628xxxxxxxxxx</b> atau format lokal <b>08xxxxxxxxxx</b>.
           </CardDescription>
         </CardHeader>
@@ -124,20 +124,21 @@ export default function PairingPage() {
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 disabled={loading || (!!pairingCode && timeLeft > 0 && !isSuccess)}
                 required
-                className="text-base font-bold"
+                className="text-base font-bold flex-1"
               />
               <Button
                 type="submit"
+                size="md"
                 disabled={loading || (!!pairingCode && timeLeft > 0 && !isSuccess)}
-                className="whitespace-nowrap sm:w-auto w-full px-6"
+                className="w-full sm:w-auto px-6 whitespace-nowrap shrink-0"
               >
                 {loading ? "MEMPROSES..." : "GENERATE CODE →"}
               </Button>
             </div>
 
             {error && (
-              <div className="p-3 bg-red-950/60 border border-red-800 rounded-lg text-xs font-mono text-red-200 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+              <div className="p-3 bg-red-950/60 border border-red-800 rounded-lg text-xs font-mono text-red-200 flex items-start sm:items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5 sm:mt-0" />
                 <span>{error}</span>
               </div>
             )}
@@ -145,9 +146,9 @@ export default function PairingPage() {
 
           {/* Success Notification */}
           {isSuccess && (
-            <div className="mt-6 p-4 bg-emerald-950/80 border-2 border-emerald-500 rounded-xl text-center space-y-2 animate-bounce">
-              <div className="text-2xl">🎉</div>
-              <h4 className="text-base font-black text-emerald-300">
+            <div className="mt-6 p-4 sm:p-6 bg-emerald-950/80 border-2 border-emerald-500 rounded-xl text-center space-y-2">
+              <div className="text-2xl sm:text-3xl">🎉</div>
+              <h4 className="text-base sm:text-lg font-black text-emerald-300">
                 WHATSAPP BERHASIL TERHUBUNG!
               </h4>
               <p className="text-xs font-mono text-emerald-200">
@@ -155,7 +156,7 @@ export default function PairingPage() {
               </p>
               <div className="pt-2">
                 <Link href="/dashboard/sessions">
-                  <Button size="sm" variant="secondary">
+                  <Button size="sm" variant="secondary" className="w-full sm:w-auto">
                     LIHAT DAFTAR SESI →
                   </Button>
                 </Link>
@@ -165,20 +166,21 @@ export default function PairingPage() {
 
           {/* Pairing Code Display */}
           {pairingCode && !isSuccess && (
-            <div className="mt-8 p-6 bg-[#0c080a] border-2 border-xevo-red rounded-xl shadow-xevo-brutal space-y-4 text-center">
+            <div className="mt-6 sm:mt-8 p-4 sm:p-6 bg-[#0c080a] border-2 border-xevo-red rounded-xl shadow-xevo-brutal space-y-4 text-center">
               <span className="text-[10px] font-mono font-bold text-xevo-muted tracking-widest uppercase">
                 PAIRING CODE ANDA
               </span>
 
-              <div className="flex items-center justify-center gap-4">
-                <span className="text-3xl sm:text-5xl font-mono font-black tracking-widest text-white selection:bg-xevo-red">
+              <div className="flex items-center justify-center gap-2 sm:gap-4 flex-wrap">
+                <span className="text-2xl xs:text-3xl sm:text-5xl font-mono font-black tracking-wider sm:tracking-widest text-white selection:bg-xevo-red select-all break-all">
                   {pairingCode}
                 </span>
                 <button
                   type="button"
                   onClick={handleCopy}
-                  className="p-3 bg-xevo-panel border border-xevo-border rounded-lg text-xevo-text hover:text-white hover:border-xevo-red transition-all"
+                  className="w-11 h-11 flex items-center justify-center bg-xevo-panel border border-xevo-border rounded-lg text-xevo-text hover:text-white hover:border-xevo-red transition-all touch-manipulation shrink-0"
                   title="Salin kode"
+                  aria-label="Salin kode pairing"
                 >
                   {copied ? (
                     <Check className="w-5 h-5 text-xevo-green" />
@@ -189,9 +191,9 @@ export default function PairingPage() {
               </div>
 
               {/* Expiry Timer */}
-              <div className="flex items-center justify-center gap-2 text-xs font-mono text-xevo-yellow">
-                <Clock className="w-4 h-4" />
-                <span>
+              <div className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs font-mono text-xevo-yellow">
+                <Clock className="w-4 h-4 shrink-0" />
+                <span className="text-[11px] sm:text-xs">
                   {timeLeft > 0
                     ? `Berlaku selama ${timeLeft} detik`
                     : "Kode telah kedaluwarsa. Silakan generate ulang."}
@@ -213,54 +215,54 @@ export default function PairingPage() {
       {/* Step by Step Instructions Guide */}
       <Card>
         <CardHeader>
-          <CardTitle>
-            <ShieldCheck className="w-5 h-5 text-xevo-green" />
+          <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-xevo-green shrink-0" />
             <span>Panduan Memasukkan Kode di WhatsApp Ponsel</span>
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-xs">
             Ikuti 5 langkah mudah berikut setelah mendapatkan kode di atas:
           </CardDescription>
         </CardHeader>
 
         <CardContent>
-          <ol className="space-y-3 text-xs font-mono text-xevo-muted">
+          <ol className="space-y-3.5 text-xs font-mono text-xevo-muted">
             <li className="flex items-start gap-3">
-              <span className="w-6 h-6 rounded-full bg-xevo-panel2 border border-xevo-border flex items-center justify-center text-white font-bold flex-shrink-0">
+              <span className="w-6 h-6 rounded-full bg-xevo-panel2 border border-xevo-border flex items-center justify-center text-white font-bold shrink-0 mt-0.5">
                 1
               </span>
-              <span>
+              <span className="leading-relaxed">
                 Buka aplikasi WhatsApp di HP pada nomor yang ingin ditautkan.
               </span>
             </li>
             <li className="flex items-start gap-3">
-              <span className="w-6 h-6 rounded-full bg-xevo-panel2 border border-xevo-border flex items-center justify-center text-white font-bold flex-shrink-0">
+              <span className="w-6 h-6 rounded-full bg-xevo-panel2 border border-xevo-border flex items-center justify-center text-white font-bold shrink-0 mt-0.5">
                 2
               </span>
-              <span>
+              <span className="leading-relaxed">
                 Ketuk menu titik tiga (Android) atau <b>Setelan / Settings</b> (iOS), lalu pilih <b>Perangkat Tertaut (Linked Devices)</b>.
               </span>
             </li>
             <li className="flex items-start gap-3">
-              <span className="w-6 h-6 rounded-full bg-xevo-panel2 border border-xevo-border flex items-center justify-center text-white font-bold flex-shrink-0">
+              <span className="w-6 h-6 rounded-full bg-xevo-panel2 border border-xevo-border flex items-center justify-center text-white font-bold shrink-0 mt-0.5">
                 3
               </span>
-              <span>
+              <span className="leading-relaxed">
                 Pilih tombol <b>Tautkan Perangkat (Link a Device)</b>.
               </span>
             </li>
             <li className="flex items-start gap-3">
-              <span className="w-6 h-6 rounded-full bg-xevo-panel2 border border-xevo-border flex items-center justify-center text-white font-bold flex-shrink-0">
+              <span className="w-6 h-6 rounded-full bg-xevo-panel2 border border-xevo-border flex items-center justify-center text-white font-bold shrink-0 mt-0.5">
                 4
               </span>
-              <span>
+              <span className="leading-relaxed">
                 Pilih opsi di bagian bawah: <b>Tautkan dengan nomor telepon saja (Link with phone number instead)</b>.
               </span>
             </li>
             <li className="flex items-start gap-3">
-              <span className="w-6 h-6 rounded-full bg-xevo-panel2 border border-xevo-border flex items-center justify-center text-white font-bold flex-shrink-0">
+              <span className="w-6 h-6 rounded-full bg-xevo-panel2 border border-xevo-border flex items-center justify-center text-white font-bold shrink-0 mt-0.5">
                 5
               </span>
-              <span>
+              <span className="leading-relaxed">
                 Masukkan kode pairing 8 karakter yang muncul di atas dan tunggu status menjadi <b>CONNECTED</b>.
               </span>
             </li>
