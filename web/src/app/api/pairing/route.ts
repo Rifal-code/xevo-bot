@@ -15,8 +15,11 @@ export async function POST(req: NextRequest) {
   try {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "127.0.0.1";
     
-    // Rate limit: 3 request per 10 menit (600 detik)
-    const rateCheck = await checkRateLimit(`pairing:${ip}`, 3, 600);
+    const isDev = process.env.NODE_ENV !== "production";
+    const maxLimit = isDev ? 30 : 10;
+    const windowSec = isDev ? 30 : 60;
+
+    const rateCheck = await checkRateLimit(`pairing:${ip}`, maxLimit, windowSec);
     if (!rateCheck.success) {
       return NextResponse.json(
         {

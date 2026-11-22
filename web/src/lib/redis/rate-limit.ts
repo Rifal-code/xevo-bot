@@ -50,3 +50,11 @@ export async function checkRateLimit(
     resetSeconds,
   };
 }
+
+export function resetRateLimit(identifier?: string) {
+  if (identifier) {
+    memoryLimitStore.delete(identifier);
+  } else {
+    memoryLimitStore.clear();
+  }
+}
