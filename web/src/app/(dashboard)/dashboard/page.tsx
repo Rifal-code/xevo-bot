@@ -5,10 +5,26 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Smartphone, Activity, KeyRound, Server, RefreshCw } from "lucide-react";
 import { engineClient } from "@/lib/engine/client";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function DashboardPage() {
   let health = { status: "unknown", activeSessions: 0, uptimeSeconds: 0 };
   let engineOnline = false;
+  let userSessionCount = 0;
+
+  try {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      const { count } = await supabase
+        .from("whatsapp_sessions")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id);
+      userSessionCount = count || 0;
+    }
+  } catch {}
 
   try {
     health = await engineClient.getHealth();
@@ -69,14 +85,14 @@ export default async function DashboardPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-mono text-xevo-muted">SESI AKTIF</span>
+              <span className="text-xs font-mono text-xevo-muted">SESI ANDA</span>
               <Smartphone className="w-4 h-4 text-xevo-green" />
             </div>
             <CardTitle className="text-2xl font-black mt-2">
-              {health.activeSessions} Akun
+              {userSessionCount} Akun
             </CardTitle>
             <CardDescription>
-              Akun WhatsApp yang sedang tertaut ke Engine
+              Nomor WhatsApp Anda yang tertaut ke platform
             </CardDescription>
           </CardHeader>
         </Card>

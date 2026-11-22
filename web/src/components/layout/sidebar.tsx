@@ -17,15 +17,18 @@ const NAV_ITEMS = [
 export function Sidebar() {
   const pathname = usePathname();
   const [isAdmin, setIsAdmin] = React.useState(false);
+  const [sessionCount, setSessionCount] = React.useState(0);
 
   React.useEffect(() => {
-    async function checkRole() {
+    async function checkRoleAndQuota() {
       try {
         const supabase = createClient();
         const {
           data: { user },
         } = await supabase.auth.getUser();
         if (!user) return;
+
+        // Role check
         const { data: profile } = await supabase
           .from("profiles")
           .select("role")
@@ -34,12 +37,27 @@ export function Sidebar() {
         if (profile?.role === "admin") {
           setIsAdmin(true);
         }
+
+        // Quota check
+        const { count } = await supabase
+          .from("whatsapp_sessions")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id);
+        setSessionCount(count || 0);
       } catch {
         // Guest / non-admin
       }
     }
-    checkRole();
-  }, []);
+    checkRoleAndQuota();
+  }, [pathname]);
+
+  const handleLogout = async () => {
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    } catch {}
+    window.location.href = "/login";
+  };
 
   const visibleNav = NAV_ITEMS.filter((item) => item.href !== "/admin" || isAdmin);
 
@@ -81,14 +99,12 @@ export function Sidebar() {
             SESSION QUOTA
           </span>
           <span className="block text-sm font-black text-white mt-1">
-            0 / 3 SESI
+            {sessionCount} / 3 SESI
           </span>
         </div>
 
         <button
-          onClick={() => {
-            window.location.href = "/login";
-          }}
+          onClick={handleLogout}
           className="w-full flex items-center justify-center gap-2 py-2 text-xs font-mono text-xevo-muted hover:text-red-400 transition-colors"
         >
           <LogOut className="w-3.5 h-3.5" />

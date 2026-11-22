@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { engineClient } from "@/lib/engine/client";
+import { createClient } from "@/lib/supabase/server";
 
 export async function DELETE(
   req: NextRequest,
@@ -14,7 +15,30 @@ export async function DELETE(
       );
     }
 
-    const result = await engineClient.deleteSession(sessionId);
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    let engineRef = sessionId;
+    if (user) {
+      const { data: dbSess } = await supabase
+        .from("whatsapp_sessions")
+        .select("id, engine_session_ref")
+        .eq("user_id", user.id)
+        .or(`id.eq.${sessionId},engine_session_ref.eq.${sessionId}`)
+        .maybeSingle();
+
+      if (dbSess) {
+        engineRef = dbSess.engine_session_ref;
+        await supabase
+          .from("whatsapp_sessions")
+          .delete()
+          .eq("id", dbSess.id);
+      }
+    }
+
+    const result = await engineClient.deleteSession(engineRef).catch(() => ({ success: true }));
     return NextResponse.json({
       success: true,
       data: result,
