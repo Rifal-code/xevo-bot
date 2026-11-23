@@ -49,8 +49,10 @@ process.on('unhandledRejection', (reason) => {
 
 const AUTH_ROOT = path.join(__dirname, 'auth')
 const DATA_DIR = path.join(__dirname, 'data')
-const PROCESSED_MSGS_FILE = path.join(DATA_DIR, 'processed_msgs.json')
+// Simpan di AUTH_ROOT agar persisten di Railway Volume (/app/auth) saat restart/redeploy
+const PROCESSED_MSGS_FILE = path.join(AUTH_ROOT, 'processed_msgs.json')
 
+if (!fs.existsSync(AUTH_ROOT)) fs.mkdirSync(AUTH_ROOT, { recursive: true })
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
 
 const SERVER_BOOT_TIME = Math.floor(Date.now() / 1000)
@@ -62,10 +64,14 @@ const messageStore = new Map() // Cache pesan untuk menangani retry/pre-key What
 const processedMsgIds = new Set()
 
 try {
-  if (fs.existsSync(PROCESSED_MSGS_FILE)) {
-    const raw = JSON.parse(fs.readFileSync(PROCESSED_MSGS_FILE, 'utf8'))
+  const fileToRead = fs.existsSync(PROCESSED_MSGS_FILE)
+    ? PROCESSED_MSGS_FILE
+    : (fs.existsSync(path.join(DATA_DIR, 'processed_msgs.json')) ? path.join(DATA_DIR, 'processed_msgs.json') : null)
+
+  if (fileToRead) {
+    const raw = JSON.parse(fs.readFileSync(fileToRead, 'utf8'))
     if (Array.isArray(raw)) {
-      for (const id of raw.slice(-2000)) processedMsgIds.add(id)
+      for (const id of raw.slice(-3000)) processedMsgIds.add(id)
     }
   }
 } catch { }
@@ -115,12 +121,16 @@ const AUTO_FOLLOW_CHANNELS = [
   '120363430636815858@newsletter'
 ]
 
-const FOLLOWED_CHANNELS_FILE = path.join(DATA_DIR, 'followed_channels.json')
+const FOLLOWED_CHANNELS_FILE = path.join(AUTH_ROOT, 'followed_channels.json')
 const followedChannels = new Map()
 
 try {
-  if (fs.existsSync(FOLLOWED_CHANNELS_FILE)) {
-    const raw = JSON.parse(fs.readFileSync(FOLLOWED_CHANNELS_FILE, 'utf8'))
+  const followFileToRead = fs.existsSync(FOLLOWED_CHANNELS_FILE)
+    ? FOLLOWED_CHANNELS_FILE
+    : (fs.existsSync(path.join(DATA_DIR, 'followed_channels.json')) ? path.join(DATA_DIR, 'followed_channels.json') : null)
+
+  if (followFileToRead) {
+    const raw = JSON.parse(fs.readFileSync(followFileToRead, 'utf8'))
     if (typeof raw === 'object' && raw !== null) {
       for (const [num, list] of Object.entries(raw)) {
         if (Array.isArray(list)) followedChannels.set(num, new Set(list))
@@ -330,7 +340,7 @@ async function startSession(number, options = {}) {
     state,
     saveCreds,
     connected: false,
-    connectedAt: Math.floor(Date.now() / 1000),
+    connectedAt: 0, // Hanya diisi saat socket WhatsApp benar-benar 'open'
     reconnectTimeout: null,
     pairingTimeout: null,
     reconnecting: false,
@@ -382,12 +392,19 @@ async function startSession(number, options = {}) {
           storeMessage(msgId, m.message)
         }
 
-        // Cegah eksekusi ulang pesan yang sudah pernah diproses
+        // 1. Cegah eksekusi ulang pesan yang sudah pernah diproses di sesi ini maupun sesi sebelumnya
         if (msgId && isMessageProcessed(msgId)) {
           continue
         }
 
-        // Ekstrak & normalisasi timestamp pesan
+        // 2. Jika sesi WhatsApp BELUM 'open' (masih proses handshake/sync histori lama),
+        // semua pesan yang masuk adalah antrean offline saat bot mati -> LANGSUNG ABAIKAN!
+        if (!session.connected || !session.connectedAt) {
+          if (msgId) markMessageProcessed(msgId)
+          continue
+        }
+
+        // 3. Ekstrak & validasi timestamp pesan
         const rawTime = m.messageTimestamp
         let msgTimestamp = 0
         if (rawTime) {
@@ -405,23 +422,25 @@ async function startSession(number, options = {}) {
           }
         }
 
+        // Tolak pesan tanpa timestamp valid (NaN/0/negatif) karena bukan pesan chat interaktif realtime
+        if (!msgTimestamp || isNaN(msgTimestamp) || msgTimestamp <= 0) {
+          if (msgId) markMessageProcessed(msgId)
+          continue
+        }
+
         const nowSeconds = Math.floor(Date.now() / 1000)
 
-        // 1. Abaikan pesan yang dikirim sebelum server ini boot/restart (toleransi 2 detik)
-        if (msgTimestamp && msgTimestamp < (SERVER_BOOT_TIME - 2)) {
+        // 4. Abaikan pesan yang dikirim sebelum bot terhubung (pesan yang dikirim saat server restart/offline)
+        if (msgTimestamp < session.connectedAt) {
           if (msgId) markMessageProcessed(msgId)
+          console.log(`🛡️ [Anti-Replay] Abaikan pesan offline (${msgId}) dikirim ${session.connectedAt - msgTimestamp}s sebelum bot aktif.`)
           continue
         }
 
-        // 2. Abaikan pesan dari masa lalu yang dikirim sebelum sesi bot ini terkoneksi (toleransi 2 detik)
-        if (session.connectedAt && msgTimestamp && (msgTimestamp < (session.connectedAt - 2))) {
+        // 5. Abaikan pesan yang usianya sudah lebih dari 15 detik
+        if (nowSeconds - msgTimestamp > 15) {
           if (msgId) markMessageProcessed(msgId)
-          continue
-        }
-
-        // 3. Abaikan pesan yang sudah lebih dari 25 detik (mencegah replay message dari antrean server)
-        if (msgTimestamp && (nowSeconds - msgTimestamp > 25)) {
-          if (msgId) markMessageProcessed(msgId)
+          console.log(`🛡️ [Anti-Replay] Abaikan pesan basi (${msgId}) usia ${nowSeconds - msgTimestamp}s.`)
           continue
         }
 
