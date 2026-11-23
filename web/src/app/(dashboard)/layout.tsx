@@ -21,12 +21,23 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
+  // Proteksi: Admin dilarang mengakses dashboard user biasa, selalu redirect ke /admin
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.role === "admin") {
+    redirect("/admin");
+  }
+
   return (
     <ToastProvider>
       <NavProvider>
         <div className="min-h-screen flex flex-col bg-xevo-bg overflow-x-hidden">
           <Navbar showMenuToggle={true} />
-          <div className="flex-1 flex w-full">
+          <div className="flex-1 flex w-full min-w-0">
             <Sidebar />
             <main className="flex-1 min-w-0 p-3.5 sm:p-6 lg:p-8 max-w-6xl mx-auto w-full overflow-x-hidden">
               {children}

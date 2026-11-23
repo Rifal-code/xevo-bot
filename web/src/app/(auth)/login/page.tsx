@@ -22,7 +22,7 @@ export default function LoginPage() {
 
     try {
       const supabase = createClient();
-      const { error: authError } = await supabase.auth.signInWithPassword({
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -31,7 +31,21 @@ export default function LoginPage() {
         throw new Error(authError.message);
       }
 
-      router.push("/dashboard");
+      // Jika user role adalah admin, langsung redirect ke /admin tanpa membuka dashboard user
+      if (authData?.user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", authData.user.id)
+          .single();
+
+        if (profile?.role === "admin") {
+          window.location.href = "/admin";
+          return;
+        }
+      }
+
+      window.location.href = "/dashboard";
     } catch (err: any) {
       setError(err?.message || "Login gagal. Periksa email dan password.");
     } finally {

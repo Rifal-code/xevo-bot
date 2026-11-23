@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   // Mock activity logs (siap terhubung ke Supabase activity_logs di tahap deployment)
   const activities = [
