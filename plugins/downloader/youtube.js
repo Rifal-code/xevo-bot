@@ -1,33 +1,9 @@
 'use strict';
 
-const { execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const os = require('os');
 const yts = require('yt-search');
-
-const YTDLP = 'python';
-const YTDLP_ARGS = ['-m', 'yt_dlp'];
-const FFMPEG_PATH = 'ffmpeg';
-
-const MAX_AUDIO_SIZE = 15 * 1024 * 1024;
-const MAX_VIDEO_SIZE = 50 * 1024 * 1024;
-
-function makeTempPath(ext) {
-  return path.join(os.tmpdir(), `ytdl_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`);
-}
-
-function runYtDlp(args, timeoutMs = 120000) {
-  return new Promise((resolve, reject) => {
-    const proc = execFile(YTDLP, [...YTDLP_ARGS, '--js-runtimes', 'nodejs', '--no-warnings', '--no-update', ...args], {
-      timeout: timeoutMs,
-      maxBuffer: 10 * 1024 * 1024,
-    }, (err, stdout, stderr) => {
-      if (err) return reject(new Error(stderr || err.message));
-      resolve(stdout.trim());
-    });
-  });
-}
+const { runYtDlp, makeTempPath, cleanFile, MAX_AUDIO_SIZE, MAX_VIDEO_SIZE } = require('../../lib/ytdlp.js');
 
 async function getInfo(url) {
   const raw = await runYtDlp([
@@ -44,7 +20,7 @@ async function getInfo(url) {
 }
 
 async function downloadAudio(url) {
-  const out = makeTempPath('mp3');
+  const out = makeTempPath('ytdl', 'mp3');
   await runYtDlp([
     '-x', '--audio-format', 'mp3', '--audio-quality', '128K',
     '-o', out.replace('.mp3', '.%(ext)s'),
@@ -63,7 +39,7 @@ async function downloadAudio(url) {
 }
 
 async function downloadVideo(url, quality = 'best') {
-  const out = makeTempPath('mp4');
+  const out = makeTempPath('ytdl', 'mp4');
   const formatStr = quality === '360' ? 'best[height<=360][ext=mp4]/best[height<=360]'
     : quality === '480' ? 'best[height<=480][ext=mp4]/best[height<=480]'
     : quality === '720' ? 'best[height<=720][ext=mp4]/best[height<=720]'
@@ -84,10 +60,6 @@ async function downloadVideo(url, quality = 'best') {
     throw new Error('File video tidak ditemukan setelah download.');
   }
   return out;
-}
-
-function cleanFile(filePath) {
-  try { if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch {}
 }
 
 function fmtDuration(seconds) {

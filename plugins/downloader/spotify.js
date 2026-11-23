@@ -1,34 +1,12 @@
 'use strict';
 
-const { execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const os = require('os');
 const yts = require('yt-search');
-
-const YTDLP = 'python';
-const YTDLP_ARGS = ['-m', 'yt_dlp'];
-
-const MAX_AUDIO_SIZE = 15 * 1024 * 1024;
-
-function makeTempPath(ext) {
-  return path.join(os.tmpdir(), `spdl_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`);
-}
-
-function runYtDlp(args, timeoutMs = 120000) {
-  return new Promise((resolve, reject) => {
-    execFile(YTDLP, [...YTDLP_ARGS, '--js-runtimes', 'nodejs', '--no-warnings', '--no-update', ...args], {
-      timeout: timeoutMs,
-      maxBuffer: 10 * 1024 * 1024,
-    }, (err, stdout, stderr) => {
-      if (err) return reject(new Error(stderr || err.message));
-      resolve(stdout.trim());
-    });
-  });
-}
+const { runYtDlp, makeTempPath, cleanFile, MAX_AUDIO_SIZE } = require('../../lib/ytdlp.js');
 
 async function downloadAudio(url) {
-  const out = makeTempPath('mp3');
+  const out = makeTempPath('spdl', 'mp3');
   await runYtDlp([
     '-x', '--audio-format', 'mp3', '--audio-quality', '128K',
     '-o', out.replace('.mp3', '.%(ext)s'),
@@ -44,10 +22,6 @@ async function downloadAudio(url) {
     throw new Error('File audio tidak ditemukan setelah download.');
   }
   return finalPath;
-}
-
-function cleanFile(filePath) {
-  try { if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch {}
 }
 
 async function getSpotifyMeta(spotifyUrl) {
