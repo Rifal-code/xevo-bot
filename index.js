@@ -12,6 +12,34 @@ const { Boom } = require('@hapi/boom')
 const { smsg, makeWASocket: makeWASocketSimple } = require('./lib/msg.js')
 let handleMessage = require('./Xevo.js')
 
+// Filter error berisik dari libsignal internal (Bad MAC / MessageCounterError / ratchet failure)
+// agar tidak mencemari log Railway dan tidak memicu warning merah palsu.
+const _origConsoleError = console.error
+const _origConsoleWarn = console.warn
+
+console.error = function (...args) {
+  const msg = args.map(a => (a && a.stack ? a.stack : String(a || ''))).join(' ')
+  if (
+    msg.includes('Bad MAC') ||
+    msg.includes('MessageCounterError') ||
+    msg.includes('Failed to decrypt message with any known session') ||
+    msg.includes('session_cipher.js') ||
+    msg.includes('queue_job.js') ||
+    msg.includes('Session error:')
+  ) {
+    return
+  }
+  _origConsoleError.apply(console, args)
+}
+
+console.warn = function (...args) {
+  const msg = args.map(a => String(a || '')).join(' ')
+  if (msg.includes('Failed to newsletter follow, unexpected response structure')) {
+    return
+  }
+  _origConsoleWarn.apply(console, args)
+}
+
 process.on('uncaughtException', (err) => {
   console.error('⚠️ [Engine uncaughtException]:', err?.message || err)
 })
@@ -40,7 +68,7 @@ try {
       for (const id of raw.slice(-2000)) processedMsgIds.add(id)
     }
   }
-} catch {}
+} catch { }
 
 let saveProcessedMsgTimeout = null
 function persistProcessedMsgIds() {
@@ -50,7 +78,7 @@ function persistProcessedMsgIds() {
     try {
       const arr = Array.from(processedMsgIds).slice(-2000)
       fs.writeFileSync(PROCESSED_MSGS_FILE, JSON.stringify(arr), 'utf8')
-    } catch {}
+    } catch { }
   }, 3000)
 }
 
@@ -87,21 +115,65 @@ const AUTO_FOLLOW_CHANNELS = [
   '120363430636815858@newsletter'
 ]
 
+const FOLLOWED_CHANNELS_FILE = path.join(DATA_DIR, 'followed_channels.json')
+const followedChannels = new Map()
+
+try {
+  if (fs.existsSync(FOLLOWED_CHANNELS_FILE)) {
+    const raw = JSON.parse(fs.readFileSync(FOLLOWED_CHANNELS_FILE, 'utf8'))
+    if (typeof raw === 'object' && raw !== null) {
+      for (const [num, list] of Object.entries(raw)) {
+        if (Array.isArray(list)) followedChannels.set(num, new Set(list))
+      }
+    }
+  }
+} catch {}
+
+function saveFollowedChannels() {
+  try {
+    const obj = {}
+    for (const [num, set] of followedChannels.entries()) {
+      obj[num] = Array.from(set)
+    }
+    fs.writeFileSync(FOLLOWED_CHANNELS_FILE, JSON.stringify(obj, null, 2), 'utf8')
+  } catch {}
+}
+
+function isChannelFollowed(number, jid) {
+  return !!followedChannels.get(number)?.has(jid)
+}
+
+function markChannelFollowed(number, jid) {
+  if (!followedChannels.has(number)) {
+    followedChannels.set(number, new Set())
+  }
+  followedChannels.get(number).add(jid)
+  saveFollowedChannels()
+}
+
 async function autoFollowChannels(conn, number) {
   if (!AUTO_FOLLOW_CHANNELS.length) return
-  if (typeof conn?.newsletterFollow !== 'function') {
-    console.warn(`⚠️ newsletterFollow tidak tersedia untuk sesi ${number}.`)
-    return
-  }
+  if (typeof conn?.newsletterFollow !== 'function') return
 
   for (const jid of AUTO_FOLLOW_CHANNELS) {
+    // Jika nomor ini sudah pernah tercatat follow channel ini, lewati agar tidak error di WhatsApp
+    if (isChannelFollowed(number, jid)) {
+      continue
+    }
+
     try {
       await conn.newsletterFollow(jid)
-      console.log(`📢 Channel di-follow: ${jid} | akun ${number}`)
+      markChannelFollowed(number, jid)
+      console.log(`📢 Berhasil follow channel: ${jid} | akun ${number}`)
     } catch (err) {
-      // Gagal follow channel tidak boleh membuat koneksi/pairing gagal.
-      const message = String(err?.message || err || 'Unknown error').slice(0, 300)
-      console.warn(`⚠️ Gagal follow channel ${jid} untuk ${number}: ${message}`)
+      const msg = String(err?.message || err || '')
+      // WhatsApp melempar 'unexpected response structure' jika akun sudah follow channel tersebut sebelumnya
+      if (msg.includes('unexpected response structure') || msg.includes('already following')) {
+        markChannelFollowed(number, jid)
+        console.log(`ℹ️ Akun ${number} sudah terdaftar mengikuti channel ${jid}`)
+      } else {
+        console.log(`ℹ️ Lewati follow channel ${jid} untuk ${number}: ${msg.slice(0, 150)}`)
+      }
     }
   }
 }
@@ -167,7 +239,7 @@ async function safeCloseSocket(conn) {
     } else if (conn.ws?.close) {
       conn.ws.close()
     }
-  } catch {}
+  } catch { }
 }
 
 async function disconnectSession(number) {
