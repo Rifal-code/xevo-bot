@@ -8,11 +8,12 @@ const { downloadMedia, imageToWebp } = require('../../lib/media.js');
 
 const configPath = path.join(__dirname, '..', '..', 'config.json');
 function getApiKey() {
+  if (process.env.REMOVEBG_API_KEY) return process.env.REMOVEBG_API_KEY;
   try {
     const cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    return cfg.removeBgApiKey || process.env.REMOVEBG_API_KEY || '';
+    return cfg.removeBgApiKey || '';
   } catch {
-    return process.env.REMOVEBG_API_KEY || '';
+    return '';
   }
 }
 

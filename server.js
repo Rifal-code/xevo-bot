@@ -5,6 +5,8 @@ const path = require('path')
 const os = require('os')
 const crypto = require('crypto')
 
+require('dotenv').config()
+
 process.on('uncaughtException', (err) => {
   console.error('⚠️ [Engine uncaughtException]:', err?.message || err)
 })

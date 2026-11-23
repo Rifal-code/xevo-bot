@@ -14,7 +14,7 @@ async function ocrSpaceFallback(buffer) {
         isOverlayRequired: 'false'
       }), {
         headers: {
-          'apikey': 'K87899142388957',
+          'apikey': process.env.OCR_SPACE_API_KEY || 'K87899142388957',
           'Content-Type': 'application/x-www-form-urlencoded'
         },
         timeout: 15000
