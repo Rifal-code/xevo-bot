@@ -20,10 +20,39 @@ process.on('unhandledRejection', (reason) => {
 })
 
 const AUTH_ROOT = path.join(__dirname, 'auth')
+const DATA_DIR = path.join(__dirname, 'data')
+const PROCESSED_MSGS_FILE = path.join(DATA_DIR, 'processed_msgs.json')
+
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
+
+const SERVER_BOOT_TIME = Math.floor(Date.now() / 1000)
 const sessions = new Map()
 const pairingLocks = new Map()
 const messageStore = new Map() // Cache pesan untuk menangani retry/pre-key WhatsApp E2EE
-const processedMsgIds = new Set() // Cache ID pesan untuk mencegah duplikasi & eksekusi pesan lama
+
+// Cache & persist ID pesan untuk mencegah replay / duplikasi saat restart atau redeploy
+const processedMsgIds = new Set()
+
+try {
+  if (fs.existsSync(PROCESSED_MSGS_FILE)) {
+    const raw = JSON.parse(fs.readFileSync(PROCESSED_MSGS_FILE, 'utf8'))
+    if (Array.isArray(raw)) {
+      for (const id of raw.slice(-2000)) processedMsgIds.add(id)
+    }
+  }
+} catch {}
+
+let saveProcessedMsgTimeout = null
+function persistProcessedMsgIds() {
+  if (saveProcessedMsgTimeout) return
+  saveProcessedMsgTimeout = setTimeout(() => {
+    saveProcessedMsgTimeout = null
+    try {
+      const arr = Array.from(processedMsgIds).slice(-2000)
+      fs.writeFileSync(PROCESSED_MSGS_FILE, JSON.stringify(arr), 'utf8')
+    } catch {}
+  }, 3000)
+}
 
 function storeMessage(keyId, message) {
   if (!keyId || !message) return
@@ -45,6 +74,7 @@ function markMessageProcessed(id) {
     processedMsgIds.delete(firstKey)
   }
   processedMsgIds.add(id)
+  persistProcessedMsgIds()
 }
 
 const PAIRING_TIMEOUT_MS = Number(process.env.PAIRING_TIMEOUT_MS || 120000)
@@ -285,28 +315,40 @@ async function startSession(number, options = {}) {
           continue
         }
 
-        // Filter pesan basi: abaikan pesan yang umurnya > 45 detik saat bot menerima,
-        // atau pesan lama yang dikirim sebelum server ini restart/terkoneksi.
+        // Ekstrak & normalisasi timestamp pesan
         const rawTime = m.messageTimestamp
-        let msgTimestamp = typeof rawTime === 'object'
-          ? (rawTime.low || (typeof rawTime.toNumber === 'function' ? rawTime.toNumber() : 0))
-          : Number(rawTime || 0)
-
-        // Normalisasi milidetik (13 digit) ke detik (10 digit)
-        if (msgTimestamp > 1e11) {
-          msgTimestamp = Math.floor(msgTimestamp / 1000)
+        let msgTimestamp = 0
+        if (rawTime) {
+          if (typeof rawTime === 'object') {
+            if (typeof rawTime.toNumber === 'function') {
+              msgTimestamp = rawTime.toNumber()
+            } else if (rawTime.low !== undefined) {
+              msgTimestamp = rawTime.low >>> 0
+            }
+          } else {
+            msgTimestamp = Number(rawTime) || 0
+          }
+          if (msgTimestamp > 1e11) {
+            msgTimestamp = Math.floor(msgTimestamp / 1000)
+          }
         }
 
         const nowSeconds = Math.floor(Date.now() / 1000)
 
-        // 1. Abaikan pesan dari masa lalu yang dikirim sebelum sesi bot ini aktif (toleransi 5 detik)
-        if (session.connectedAt && msgTimestamp && (msgTimestamp < (session.connectedAt - 5))) {
+        // 1. Abaikan pesan yang dikirim sebelum server ini boot/restart (toleransi 2 detik)
+        if (msgTimestamp && msgTimestamp < (SERVER_BOOT_TIME - 2)) {
           if (msgId) markMessageProcessed(msgId)
           continue
         }
 
-        // 2. Abaikan pesan yang sudah lebih dari 45 detik
-        if (msgTimestamp && (nowSeconds - msgTimestamp > 45)) {
+        // 2. Abaikan pesan dari masa lalu yang dikirim sebelum sesi bot ini terkoneksi (toleransi 2 detik)
+        if (session.connectedAt && msgTimestamp && (msgTimestamp < (session.connectedAt - 2))) {
+          if (msgId) markMessageProcessed(msgId)
+          continue
+        }
+
+        // 3. Abaikan pesan yang sudah lebih dari 25 detik (mencegah replay message dari antrean server)
+        if (msgTimestamp && (nowSeconds - msgTimestamp > 25)) {
           if (msgId) markMessageProcessed(msgId)
           continue
         }

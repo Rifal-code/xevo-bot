@@ -3,39 +3,42 @@
 const path = require('path');
 const fs = require('fs');
 const yts = require('yt-search');
-const { runYtDlp, makeTempPath, cleanFile, MAX_AUDIO_SIZE, MAX_VIDEO_SIZE } = require('../../lib/ytdlp.js');
+const {
+  runYtDlp,
+  makeTempPath,
+  cleanFile,
+  downloadMusicWithFallback,
+  getYouTubeOEmbed,
+  MAX_AUDIO_SIZE,
+  MAX_VIDEO_SIZE
+} = require('../../lib/ytdlp.js');
 
 async function getInfo(url) {
-  const raw = await runYtDlp([
-    '--print', '%(title)s|||%(duration)s|||%(channel)s|||%(filesize_approx,filesize)s',
-    '--no-download', url
-  ], 30000);
-  const [title, duration, channel, size] = raw.split('|||');
-  return {
-    title: title || 'Unknown',
-    duration: parseInt(duration) || 0,
-    channel: channel || 'Unknown',
-    size: parseInt(size) || 0
-  };
-}
-
-async function downloadAudio(url) {
-  const out = makeTempPath('ytdl', 'mp3');
-  await runYtDlp([
-    '-x', '--audio-format', 'mp3', '--audio-quality', '128K',
-    '-o', out.replace('.mp3', '.%(ext)s'),
-    '--max-filesize', `${MAX_AUDIO_SIZE}`,
-    url
-  ]);
-  const finalPath = out.replace('.mp3', '.mp3');
-  if (!fs.existsSync(finalPath)) {
-    const dir = path.dirname(out);
-    const base = path.basename(out, '.mp3');
-    const files = fs.readdirSync(dir).filter(f => f.startsWith(base));
-    if (files.length > 0) return path.join(dir, files[0]);
-    throw new Error('File audio tidak ditemukan setelah download.');
+  try {
+    const raw = await runYtDlp([
+      '--print', '%(title)s|||%(duration)s|||%(channel)s|||%(filesize_approx,filesize)s',
+      '--no-download', url
+    ], 30000);
+    const [title, duration, channel, size] = raw.split('|||');
+    return {
+      title: title || 'Unknown',
+      duration: parseInt(duration) || 0,
+      channel: channel || 'Unknown',
+      size: parseInt(size) || 0
+    };
+  } catch (err) {
+    // Fallback ambil info dari oEmbed jika kena blokir yt-dlp
+    const oembed = await getYouTubeOEmbed(url);
+    if (oembed) {
+      return {
+        title: oembed.title,
+        duration: 0,
+        channel: oembed.author,
+        size: 0
+      };
+    }
+    throw err;
   }
-  return finalPath;
 }
 
 async function downloadVideo(url, quality = 'best') {
@@ -63,6 +66,7 @@ async function downloadVideo(url, quality = 'best') {
 }
 
 function fmtDuration(seconds) {
+  if (!seconds) return 'N/A';
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}:${String(s).padStart(2, '0')}`;
@@ -94,12 +98,15 @@ module.exports = [
         const info = await getInfo(url);
         if (info.duration > 600) return reply('❌ Durasi melebihi 10 menit. Gunakan video yang lebih pendek.');
 
-        filePath = await downloadAudio(url);
+        const dlResult = await downloadMusicWithFallback(url, info.title);
+        filePath = dlResult.filePath;
         const buffer = fs.readFileSync(filePath);
 
         if (buffer.length > MAX_AUDIO_SIZE) {
           return reply('❌ File terlalu besar (maks 15MB). Coba video yang lebih pendek.');
         }
+
+        const sourceNote = dlResult.source.includes('Fallback') ? ` • ${dlResult.source}` : '';
 
         await conn.sendMessage(m.chat, {
           audio: buffer,
@@ -108,7 +115,7 @@ module.exports = [
           contextInfo: {
             externalAdReply: {
               title: `🎵 ${info.title.slice(0, 50)}`,
-              body: `${info.channel} • ${fmtDuration(info.duration)}`,
+              body: `${info.channel}${sourceNote}`,
               mediaType: 1,
               sourceUrl: url
             }
@@ -148,13 +155,10 @@ module.exports = [
         const buffer = fs.readFileSync(filePath);
 
         if (buffer.length > MAX_VIDEO_SIZE) {
-          return reply('❌ File terlalu besar (maks 50MB). Coba kualitas rendah atau video pendek.');
+          return reply('❌ File video terlalu besar (maks 50MB).');
         }
 
-        const caption = `🎬 *YOUTUBE VIDEO*\n\n` +
-          `📌 *Judul:* ${info.title}\n` +
-          `👤 *Channel:* ${info.channel}\n` +
-          `⏱️ *Durasi:* ${fmtDuration(info.duration)}`;
+        const caption = `🎬 *${info.title}*\n⏱️ Durasi: ${fmtDuration(info.duration)}\n📺 Channel: ${info.channel}`;
 
         await conn.sendMessage(m.chat, {
           video: buffer,
@@ -164,7 +168,11 @@ module.exports = [
 
       } catch (err) {
         console.error('❌ ytmp4 error:', err);
-        reply(`❌ Gagal mengunduh video: ${err.message}`);
+        let msg = err.message;
+        if (msg.includes('confirm you\'re not a bot') || msg.includes('Sign in to confirm')) {
+          msg = 'YouTube memblokir server cloud. Pasang cookies.txt atau environment variable YOUTUBE_COOKIES di Railway untuk mengunduh video.';
+        }
+        reply(`❌ Gagal mengunduh video: ${msg}`);
       } finally {
         cleanFile(filePath);
       }
@@ -175,7 +183,7 @@ module.exports = [
     name: 'play',
     aliases: ['playmusic', 'lagu'],
     category: 'downloader',
-    description: 'Cari dan download lagu dari YouTube berdasarkan judul.',
+    description: 'Cari dan download lagu berdasarkan judul.',
     usage: '.play <judul lagu>',
 
     run: async ({ conn, m, text, reply }) => {
@@ -193,8 +201,9 @@ module.exports = [
 
         await reply(`🎵 Ditemukan: *${video.title}*\n⏱️ ${video.timestamp} • ${video.author.name}\n\n⏳ Mengunduh audio...`);
 
-        const url = video.url;
-        filePath = await downloadAudio(url);
+        // Gunakan multi-engine music downloader (SoundCloud -> YouTube fallback)
+        const dlResult = await downloadMusicWithFallback(text, video.title);
+        filePath = dlResult.filePath;
         const buffer = fs.readFileSync(filePath);
 
         if (buffer.length > MAX_AUDIO_SIZE) {
@@ -210,7 +219,7 @@ module.exports = [
               title: `🎵 ${video.title.slice(0, 50)}`,
               body: `${video.author.name} • ${video.timestamp}`,
               mediaType: 1,
-              sourceUrl: url,
+              sourceUrl: video.url,
               thumbnailUrl: video.thumbnail
             }
           }
