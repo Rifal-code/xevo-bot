@@ -41,12 +41,10 @@ async function getInfo(url) {
   }
 }
 
-async function downloadVideo(url, quality = 'best') {
+async function downloadVideo(url, quality = '480') {
   const out = makeTempPath('ytdl', 'mp4');
-  const formatStr = quality === '360' ? 'best[height<=360][ext=mp4]/best[height<=360]'
-    : quality === '480' ? 'best[height<=480][ext=mp4]/best[height<=480]'
-    : quality === '720' ? 'best[height<=720][ext=mp4]/best[height<=720]'
-    : 'best[height<=480][ext=mp4]/best[height<=480]';
+  const height = quality === '360' ? 360 : quality === '720' ? 720 : 480;
+  const formatStr = `bestvideo[height<=?${height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=?${height}]+bestaudio/best[height<=?${height}]/best`;
   
   await runYtDlp([
     '-f', formatStr,
@@ -138,12 +136,13 @@ module.exports = [
     description: 'Download video MP4 dari link YouTube.',
     usage: '.ytmp4 <url_youtube>',
 
-    run: async ({ conn, m, text, reply }) => {
+    run: async ({ conn, m, args, text, reply }) => {
       if (!text) return reply('⚠️ Masukkan link YouTube!\n\nContoh: `.ytmp4 https://youtu.be/xxxxx`');
 
       const url = extractYtUrl(text);
       if (!url) return reply('❌ Link YouTube tidak valid.');
 
+      const quality = args && args.find(a => ['360', '480', '720'].includes(a)) || '480';
       await reply('⏳ Mengunduh video dari YouTube, mohon tunggu...');
 
       let filePath = null;
@@ -151,7 +150,7 @@ module.exports = [
         const info = await getInfo(url);
         if (info.duration > 600) return reply('❌ Durasi melebihi 10 menit. Gunakan video yang lebih pendek.');
 
-        filePath = await downloadVideo(url);
+        filePath = await downloadVideo(url, quality);
         const buffer = fs.readFileSync(filePath);
 
         if (buffer.length > MAX_VIDEO_SIZE) {
