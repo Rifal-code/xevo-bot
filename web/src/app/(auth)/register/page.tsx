@@ -36,15 +36,20 @@ export default function RegisterPage() {
       const json = await res.json().catch(() => ({}));
 
       if (!res.ok || !json.success) {
-        throw new Error(json.message || "Gagal membuat akun.");
+        throw new Error(json.message || `Gagal membuat akun (Error ${res.status}: ${res.statusText || "Server error"})`);
       }
 
       // 2. Langsung login otomatis ke sesi pengguna
       const supabase = createClient();
-      await supabase.auth.signInWithPassword({
+      const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
+
+      if (signInError) {
+        router.push("/login");
+        return;
+      }
 
       router.push("/dashboard");
     } catch (err: any) {

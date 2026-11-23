@@ -1,11 +1,13 @@
 config.local.json
 cloudflared
 node_modules/
-auth/
-database/
+/auth/
+/database/
 *.tmp
+*.tsbuildinfo
 .env
 .env.*
 .next/
 web/.next/
 web/node_modules/
+
