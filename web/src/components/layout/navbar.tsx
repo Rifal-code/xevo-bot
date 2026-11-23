@@ -39,7 +39,7 @@ export function Navbar({ showMenuToggle = false }: { showMenuToggle?: boolean })
   };
 
   return (
-    <header className="h-16 border-b-2 border-xevo-border bg-xevo-panel/95 backdrop-blur-md sticky top-0 z-40 px-3 sm:px-6 flex items-center justify-between">
+    <header className="h-16 border-b-2 border-xevo-border bg-xevo-panel/95 backdrop-blur-md fixed top-0 left-0 right-0 z-50 px-3 sm:px-6 flex items-center justify-between">
       {/* Left side: Hamburger (if enabled) + Brand */}
       <div className="flex items-center gap-2 sm:gap-3">
         {showMenuToggle && (

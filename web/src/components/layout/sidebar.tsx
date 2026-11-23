@@ -146,8 +146,8 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Desktop Persistent Sidebar — LOCKED / STICKY */}
-      <aside className="hidden md:flex w-64 border-r-2 border-xevo-border bg-xevo-panel flex-col p-4 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto shrink-0 z-30">
+      {/* Desktop Persistent Sidebar — LOCKED / FIXED */}
+      <aside className="hidden md:flex w-64 border-r-2 border-xevo-border bg-xevo-panel flex-col p-4 fixed top-16 left-0 bottom-0 overflow-y-auto shrink-0 z-40">
         {navigationContent}
       </aside>
 

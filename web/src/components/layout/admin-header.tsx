@@ -9,7 +9,7 @@ export function AdminHeader() {
   const { isMobileMenuOpen, toggleMobileMenu } = useNav();
 
   return (
-    <header className="h-16 border-b-2 border-red-950/80 bg-[#160608] px-3 sm:px-6 flex items-center justify-between sticky top-0 z-40">
+    <header className="h-16 border-b-2 border-red-950/80 bg-[#160608] px-3 sm:px-6 flex items-center justify-between fixed top-0 left-0 right-0 z-50">
       <div className="flex items-center gap-2 sm:gap-3">
         {/* Mobile Hamburger Toggle */}
         <button

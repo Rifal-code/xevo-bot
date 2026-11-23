@@ -36,20 +36,22 @@ export default async function AdminLayout({
     <ToastProvider>
       <NavProvider>
         <div className="min-h-screen flex flex-col bg-xevo-bg text-xevo-text">
-          {/* Admin Operations Topbar */}
+          {/* Admin Operations Topbar — FIXED AT TOP */}
           <AdminHeader />
 
-          {/* Admin Layout with locked Admin Sidebar & Main Content */}
-          <div className="flex flex-1 w-full min-w-0">
+          {/* Admin Body: Sidebar FIXED at left, Main content scrollable with padding */}
+          <div className="flex-1 flex pt-16">
             <AdminSidebar />
-            <main className="flex-1 min-w-0 p-3.5 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full overflow-x-hidden">
-              {children}
-            </main>
-          </div>
+            <div className="flex-1 flex flex-col md:pl-64 min-w-0 w-full">
+              <main className="flex-1 min-w-0 p-3.5 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+                {children}
+              </main>
 
-          <footer className="border-t border-red-950/80 bg-[#0f0405] py-4 text-center text-[10px] sm:text-xs font-mono text-xevo-muted px-4">
-            PECADO SECURE ENGINE OPS • MULTI-SESSION ORCHESTRATOR • 2026
-          </footer>
+              <footer className="border-t border-red-950/80 bg-[#0f0405] py-4 text-center text-[10px] sm:text-xs font-mono text-xevo-muted px-4 mt-auto">
+                PECADO SECURE ENGINE OPS • MULTI-SESSION ORCHESTRATOR • 2026
+              </footer>
+            </div>
+          </div>
         </div>
       </NavProvider>
     </ToastProvider>

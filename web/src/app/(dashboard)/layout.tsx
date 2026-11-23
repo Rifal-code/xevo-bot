@@ -35,13 +35,18 @@ export default async function DashboardLayout({
   return (
     <ToastProvider>
       <NavProvider>
-        <div className="min-h-screen flex flex-col bg-xevo-bg overflow-x-hidden">
+        <div className="min-h-screen flex flex-col bg-xevo-bg">
+          {/* Topbar — FIXED AT TOP */}
           <Navbar showMenuToggle={true} />
-          <div className="flex-1 flex w-full min-w-0">
+
+          {/* Body: Sidebar FIXED at left, Main content scrollable with padding */}
+          <div className="flex-1 flex pt-16">
             <Sidebar />
-            <main className="flex-1 min-w-0 p-3.5 sm:p-6 lg:p-8 max-w-6xl mx-auto w-full overflow-x-hidden">
-              {children}
-            </main>
+            <div className="flex-1 flex flex-col md:pl-64 min-w-0 w-full">
+              <main className="flex-1 min-w-0 p-3.5 sm:p-6 lg:p-8 max-w-6xl mx-auto w-full">
+                {children}
+              </main>
+            </div>
           </div>
         </div>
       </NavProvider>
