@@ -228,6 +228,7 @@ async function startSession(number, options = {}) {
     state,
     saveCreds,
     connected: false,
+    connectedAt: Math.floor(Date.now() / 1000),
     reconnectTimeout: null,
     pairingTimeout: null,
     reconnecting: false,
@@ -284,15 +285,28 @@ async function startSession(number, options = {}) {
           continue
         }
 
-        // Filter pesan basi: abaikan pesan yang umurnya > 90 detik saat bot menerima
-        // Menghindari chat masa lalu dieksekusi ulang saat server baru restart / reconnect
+        // Filter pesan basi: abaikan pesan yang umurnya > 45 detik saat bot menerima,
+        // atau pesan lama yang dikirim sebelum server ini restart/terkoneksi.
         const rawTime = m.messageTimestamp
-        const msgTimestamp = typeof rawTime === 'object'
-          ? (rawTime.low || rawTime.toNumber?.() || 0)
+        let msgTimestamp = typeof rawTime === 'object'
+          ? (rawTime.low || (typeof rawTime.toNumber === 'function' ? rawTime.toNumber() : 0))
           : Number(rawTime || 0)
 
+        // Normalisasi milidetik (13 digit) ke detik (10 digit)
+        if (msgTimestamp > 1e11) {
+          msgTimestamp = Math.floor(msgTimestamp / 1000)
+        }
+
         const nowSeconds = Math.floor(Date.now() / 1000)
-        if (msgTimestamp && (nowSeconds - msgTimestamp > 90)) {
+
+        // 1. Abaikan pesan dari masa lalu yang dikirim sebelum sesi bot ini aktif (toleransi 5 detik)
+        if (session.connectedAt && msgTimestamp && (msgTimestamp < (session.connectedAt - 5))) {
+          if (msgId) markMessageProcessed(msgId)
+          continue
+        }
+
+        // 2. Abaikan pesan yang sudah lebih dari 45 detik
+        if (msgTimestamp && (nowSeconds - msgTimestamp > 45)) {
           if (msgId) markMessageProcessed(msgId)
           continue
         }
@@ -329,6 +343,7 @@ async function startSession(number, options = {}) {
 
     if (connection === 'open') {
       session.connected = true
+      session.connectedAt = Math.floor(Date.now() / 1000)
       session.reconnecting = false
       session.reconnectAttempts = 0
       session.pendingPairing = false
