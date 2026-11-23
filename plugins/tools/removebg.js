@@ -6,15 +6,29 @@ const path = require('path');
 const FormData = require('form-data');
 const { downloadMedia, imageToWebp } = require('../../lib/media.js');
 
-const configPath = path.join(__dirname, '..', '..', 'config.json');
+const envPath = path.join(__dirname, '..', '..', '.env');
+
 function getApiKey() {
-  if (process.env.REMOVEBG_API_KEY) return process.env.REMOVEBG_API_KEY;
-  try {
-    const cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    return cfg.removeBgApiKey || '';
-  } catch {
-    return '';
+  // Cek environment variable terlebih dahulu
+  if (process.env.REMOVEBG_API_KEY && process.env.REMOVEBG_API_KEY.trim() !== '') {
+    return process.env.REMOVEBG_API_KEY.trim();
   }
+
+  // Baca dinamis langsung dari file .env jika baru saja diedit tanpa restart
+  try {
+    if (fs.existsSync(envPath)) {
+      const dotenv = require('dotenv');
+      const envConfig = dotenv.parse(fs.readFileSync(envPath));
+      if (envConfig.REMOVEBG_API_KEY && envConfig.REMOVEBG_API_KEY.trim() !== '') {
+        process.env.REMOVEBG_API_KEY = envConfig.REMOVEBG_API_KEY.trim();
+        return envConfig.REMOVEBG_API_KEY.trim();
+      }
+    }
+  } catch (e) {
+    console.error('⚠️ Gagal membaca .env untuk REMOVEBG_API_KEY:', e?.message || e);
+  }
+
+  return '';
 }
 
 async function removeBgWithApi(buffer, apiKey) {
