@@ -291,21 +291,18 @@ module.exports = async (conn, m) => {
         const ping = Math.max(0, Date.now() - timestamp)
         const mode = config.mode === 'self' ? 'SELF' : 'PUBLIC'
 
-        const menuText = `
-┏━━━〔 INFO BOT 〕━━━⬣
-┃
-┃❍ Nama Bot : ${config.botName || 'Xevo Asistane'}
-┃❍ Developer : ${config.developerName || 'Nachles'}
-┃❍ Tele : t.me/NachlesX
-┃❍ Type : Case
-┃❍ Mode : ${mode}
-┃❍ Number : ${String(m.sender || '').replace(/@.+/g, '')}
-┃❍ Ping : ${Math.floor(ping)} ms
-┃❍ Runtime : ${days}H ${hours}J ${minutes}M ${seconds}D
-┃
-┗━━━━━━━━━━━━━━⬣
-
-Klik tombol *ALL MENU* di bawah untuk melihat semua menu.`
+        const senderNum = String(m.sender || '').replace(/@.+/g, '')
+        const menuText = [
+          '⚡ *PECADO BOT — MULTI-SESSION*',
+          '━━━━━━━━━━━━━━━━━━━━',
+          `👤 *User:* +${senderNum}`,
+          `🟢 *Status:* Connected (${mode})`,
+          `📶 *Speed:* ${Math.floor(ping)} ms`,
+          `⏱️ *Uptime:* ${days}d ${hours}h ${minutes}m ${seconds}s`,
+          '━━━━━━━━━━━━━━━━━━━━',
+          '',
+          '📌 Ketik *.allmenu* untuk melihat seluruh daftar perintah bot.'
+        ].join('\n')
 
         const menuImage = path.join(__dirname, 'src', 'img', 'menu.jpeg')
         let sent = false
@@ -364,36 +361,44 @@ Klik tombol *ALL MENU* di bawah untuk melihat semua menu.`
       }
 
       case 'allmenu': {
+        const senderNum = String(m.sender || '').replace(/@.+/g, '');
         const menuSections = [
-          '*XEVO BOT — ALL MENU*',
+          '╭───「 *PECADO BOT MENU* 」',
+          '│',
+          `│ 👤 *User:* +${senderNum}`,
+          `│ 🟢 *Engine:* Online (${config.mode === 'self' ? 'Self' : 'Public'})`,
+          '│',
+          '├─「 *DOWNLOADER* 」',
+          '│ ⭔ *.tiktok* <url>',
+          '│    _Download video tanpa WM / audio_',
+          '│ ⭔ *.ig* <url>',
+          '│    _Download video Reels & Post_',
+          '│',
+          '├─「 *MEDIA & TOOLS* 」',
+          '│ ⭔ *.s* [reply/kirim foto]',
+          '│    _Ubah gambar/video jadi stiker_',
+          '│ ⭔ *.toimg* [reply stiker]',
+          '│    _Ubah stiker balik jadi foto_',
+          '│ ⭔ *.tts* <teks>',
+          '│    _Ubah teks jadi VN suara Google_',
+          '│ ⭔ *.qr* <teks/link>',
+          '│    _Generate gambar QR code_',
+          '│',
+          '├─「 *INTERACTIVE GAMES* 」',
+          '│ ⭔ *.flappy*  — Game Flappy Bird HD',
+          '│ ⭔ *.catur*   — Game Catur 2 Player HD',
+          '│ ⭔ *.dadu*    *.koin*    *.suit*',
+          '│ ⭔ *.tebak*   *.8ball*   *.quote*',
+          '│ ⭔ *.fakta*',
+          '│',
+          '├─「 *SYSTEM & INFO* 」',
+          '│ ⭔ *.menu*    *.ping*    *.owner*',
+          '│',
+          '╰────────────────────',
           '',
-          '📥 DOWNLOADER',
-          '• .tiktok <url> — Video no wm & mp3 audio',
-          '• .ig <url> — Download Reels & Post IG',
-          '',
-          '🛠️ TOOLS & UTILITIES',
-          '• .s [pack|author] — Buat stiker WhatsApp dari gambar/video',
-          '• .toimg — Ubah stiker balik jadi gambar foto',
-          '• .tts [id/en] <teks> — Teks ke suara VN Google',
-          '• .qr <teks/link> — Bikin gambar QR Code instan',
-          '',
-          '🎮 INTERACTIVE MINI APPS',
-          '• .flappy / .flappybird — Game Flappy Bird HD',
-          '• .catur / .chess — Game Catur 2 Player HD',
-          '• .dadu — Lempar dadu interaktif',
-          '• .koin — Lempar koin keberuntungan',
-          '• .8ball — Bola ramal 8-ball interaktif',
-          '• .suit — Gunting batu kertas vs bot',
-          '• .tebakangka — Game tebak angka 1-100',
-          '• .quote — Kartu kutipan inspiratif',
-          '• .fakta — Fakta unik dunia',
-          '',
-          'ℹ️ INFO & SYSTEM',
-          '• .menu — Info status & ringkasan bot',
-          '• .ping — Cek latensi & spesifikasi server',
-          '• .info — Detail informasi pesan & chat',
-          '• .myjid — Cek ID WhatsApp pengirim',
-          '• .owner — Kontak creator bot',
+          '💡 *Petunjuk Singkat:*',
+          '• `<...>` = Wajib diisi (contoh: `.tiktok https://...`)',
+          '• `[...]` = Opsional atau reply media di chat',
           '',
           '_Pecado WhatsApp Engine • Multi-Session Platform_'
         ];
