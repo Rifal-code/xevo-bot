@@ -22,6 +22,17 @@ process.on('unhandledRejection', (reason) => {
 const AUTH_ROOT = path.join(__dirname, 'auth')
 const sessions = new Map()
 const pairingLocks = new Map()
+const messageStore = new Map() // Cache pesan untuk menangani retry/pre-key WhatsApp E2EE
+
+function storeMessage(keyId, message) {
+  if (!keyId || !message) return
+  if (messageStore.size > 2500) {
+    const firstKey = messageStore.keys().next().value
+    messageStore.delete(firstKey)
+  }
+  messageStore.set(keyId, message)
+}
+
 const PAIRING_TIMEOUT_MS = Number(process.env.PAIRING_TIMEOUT_MS || 120000)
 const MAX_RECONNECT_ATTEMPTS = Number(process.env.MAX_RECONNECT_ATTEMPTS || 5)
 
@@ -216,8 +227,24 @@ async function startSession(number, options = {}) {
     printQRInTerminal: false,
     browser: Browsers.ubuntu('Chrome'),
     auth: state,
-    markOnlineOnConnect: false
+    markOnlineOnConnect: false,
+    syncFullHistory: false,
+    generateHighQualityLinkPreview: true,
+    getMessage: async (key) => {
+      const msg = messageStore.get(key.id)
+      return msg || undefined
+    }
   })
+
+  // Hook sendMessage agar pesan yang dikirim bot disimpan untuk permintaan retry E2EE WhatsApp HP
+  const originalSendMessage = conn.sendMessage.bind(conn)
+  conn.sendMessage = async (...args) => {
+    const res = await originalSendMessage(...args)
+    if (res?.key?.id && res?.message) {
+      storeMessage(res.key.id, res.message)
+    }
+    return res
+  }
 
   session.conn = conn
   sessions.set(number, session)
@@ -226,6 +253,9 @@ async function startSession(number, options = {}) {
     try {
       const m = chatUpdate.messages[0]
       if (!m?.message || m.key?.remoteJid === 'status@broadcast') return
+      if (m.key?.id && m.message) {
+        storeMessage(m.key.id, m.message)
+      }
       const processedMsg = await smsg(conn, m)
       if (processedMsg) await handleMessage(conn, processedMsg)
     } catch (err) {
