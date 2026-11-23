@@ -23,6 +23,7 @@ const AUTH_ROOT = path.join(__dirname, 'auth')
 const sessions = new Map()
 const pairingLocks = new Map()
 const messageStore = new Map() // Cache pesan untuk menangani retry/pre-key WhatsApp E2EE
+const processedMsgIds = new Set() // Cache ID pesan untuk mencegah duplikasi & eksekusi pesan lama
 
 function storeMessage(keyId, message) {
   if (!keyId || !message) return
@@ -31,6 +32,19 @@ function storeMessage(keyId, message) {
     messageStore.delete(firstKey)
   }
   messageStore.set(keyId, message)
+}
+
+function isMessageProcessed(id) {
+  return processedMsgIds.has(id)
+}
+
+function markMessageProcessed(id) {
+  if (!id) return
+  if (processedMsgIds.size > 3000) {
+    const firstKey = processedMsgIds.values().next().value
+    processedMsgIds.delete(firstKey)
+  }
+  processedMsgIds.add(id)
 }
 
 const PAIRING_TIMEOUT_MS = Number(process.env.PAIRING_TIMEOUT_MS || 120000)
@@ -240,8 +254,9 @@ async function startSession(number, options = {}) {
   const originalSendMessage = conn.sendMessage.bind(conn)
   conn.sendMessage = async (...args) => {
     const res = await originalSendMessage(...args)
-    if (res?.key?.id && res?.message) {
-      storeMessage(res.key.id, res.message)
+    if (res?.key?.id) {
+      if (res.message) storeMessage(res.key.id, res.message)
+      markMessageProcessed(res.key.id)
     }
     return res
   }
@@ -251,13 +266,41 @@ async function startSession(number, options = {}) {
 
   conn.ev.on('messages.upsert', async (chatUpdate) => {
     try {
-      const m = chatUpdate.messages[0]
-      if (!m?.message || m.key?.remoteJid === 'status@broadcast') return
-      if (m.key?.id && m.message) {
-        storeMessage(m.key.id, m.message)
+      // Abaikan sync riwayat pesan lama / app state sync (hanya terima 'notify' realtime)
+      if (chatUpdate.type !== 'notify') return
+
+      for (const m of chatUpdate.messages || []) {
+        if (!m?.message || m.key?.remoteJid === 'status@broadcast') continue
+
+        const msgId = m.key?.id
+
+        if (msgId && m.message) {
+          storeMessage(msgId, m.message)
+        }
+
+        // Cegah eksekusi ulang pesan yang sudah pernah diproses
+        if (msgId && isMessageProcessed(msgId)) {
+          continue
+        }
+
+        // Filter pesan basi: abaikan pesan yang umurnya > 90 detik saat bot menerima
+        // Menghindari chat masa lalu dieksekusi ulang saat server baru restart / reconnect
+        const rawTime = m.messageTimestamp
+        const msgTimestamp = typeof rawTime === 'object'
+          ? (rawTime.low || rawTime.toNumber?.() || 0)
+          : Number(rawTime || 0)
+
+        const nowSeconds = Math.floor(Date.now() / 1000)
+        if (msgTimestamp && (nowSeconds - msgTimestamp > 90)) {
+          if (msgId) markMessageProcessed(msgId)
+          continue
+        }
+
+        if (msgId) markMessageProcessed(msgId)
+
+        const processedMsg = await smsg(conn, m)
+        if (processedMsg) await handleMessage(conn, processedMsg)
       }
-      const processedMsg = await smsg(conn, m)
-      if (processedMsg) await handleMessage(conn, processedMsg)
     } catch (err) {
       console.error(`❌ messages.upsert error (${number}):`, err)
     }
