@@ -7,8 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "bot": "node index.js",
-    "engine": "node index.js",
-    "postinstall": "node scripts/install-ytdlp.js"
+    "engine": "node index.js"
   },
   "dependencies": {
     "@distube/ytdl-core": "^4.16.12",
