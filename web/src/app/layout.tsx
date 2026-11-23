@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Space_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const inter = Inter({
@@ -27,6 +28,7 @@ export default function RootLayout({
     <html lang="id" className={`${inter.variable} ${spaceMono.variable}`}>
       <body className="bg-xevo-bg text-xevo-text selection:bg-xevo-red selection:text-white antialiased">
         {children}
+        <Analytics />
       </body>
     </html>
   );
