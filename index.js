@@ -52,8 +52,9 @@ const MAX_RECONNECT_ATTEMPTS = Number(process.env.MAX_RECONNECT_ATTEMPTS || 5)
 
 // Channel WhatsApp yang otomatis di-follow setiap sesi berhasil terhubung.
 const AUTO_FOLLOW_CHANNELS = [
-  '120363424295522327@newsletter',
-  '120363422066682134@newsletter'
+  '120363422066682134@newsletter',
+  '120363431536200221@newsletter',
+  '120363430636815858@newsletter'
 ]
 
 async function autoFollowChannels(conn, number) {
