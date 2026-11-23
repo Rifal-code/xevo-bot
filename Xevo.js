@@ -16,6 +16,7 @@ const os = require('os')
 const util = require('util')
 const { randomInt } = require('crypto')
 const pluginLoader = require('./lib/plugin-loader.js')
+const groupDb = require('./lib/group-db.js')
 
 const guessGames = new Map()
 
@@ -249,6 +250,41 @@ module.exports = async (conn, m) => {
     if (!body) return
     m.text = body
 
+    // Cek proteksi Anti-Link di grup
+    if (m.isGroup && groupDb.isAntilinkEnabled(m.chat)) {
+      const isGroupLink = /(https?:\/\/)?chat\.whatsapp\.com\/[a-zA-Z0-9]{20,26}/i.test(body)
+      if (isGroupLink) {
+        try {
+          const groupMetadata = await conn.groupMetadata(m.chat)
+          const participants = groupMetadata?.participants || []
+          const senderNum = (m.sender || '').split('@')[0]
+          const isSenderAdmin = participants.some(p => p.id.split('@')[0] === senderNum && p.admin)
+
+          // Admin grup bebas kirim link
+          if (!isSenderAdmin) {
+            const botNum = (conn.user?.id || '').replace(/:\d+@/, '@').split('@')[0]
+            const isBotAdmin = participants.some(p => p.id.split('@')[0] === botNum && p.admin)
+
+            if (isBotAdmin) {
+              await conn.sendMessage(m.chat, { delete: m.key })
+              await conn.sendMessage(m.chat, {
+                text: `⚠️ *ANTI-LINK DETECTED*\nMaaf @${senderNum}, link grup WhatsApp dilarang di sini! Pesan Anda telah dihapus.`,
+                mentions: [m.sender]
+              })
+            } else {
+              await conn.sendMessage(m.chat, {
+                text: `⚠️ *ANTI-LINK DETECTED*\n@${senderNum} mengirim link grup WhatsApp! Jadikan bot sebagai admin agar pesan dapat dihapus secara otomatis.`,
+                mentions: [m.sender]
+              })
+            }
+            return
+          }
+        } catch (e) {
+          console.error('❌ Gagal memeriksa anti-link:', e?.message || e)
+        }
+      }
+    }
+
     let command = ''
     let args = []
     if (isButtonResponse) {
@@ -370,9 +406,17 @@ module.exports = async (conn, m) => {
           '│',
           '├─「 *DOWNLOADER* 」',
           '│ ⭔ *.tiktok* <url>',
-          '│    _Download video tanpa WM / audio_',
+          '│    _Video tanpa WM / audio_',
           '│ ⭔ *.ig* <url>',
-          '│    _Download video Reels & Post_',
+          '│    _Video Reels & Post IG_',
+          '│ ⭔ *.ytmp3* <url>',
+          '│    _Audio MP3 dari YouTube_',
+          '│ ⭔ *.ytmp4* <url>',
+          '│    _Video MP4 dari YouTube_',
+          '│ ⭔ *.play* <judul>',
+          '│    _Cari & unduh lagu otomatis_',
+          '│ ⭔ *.spotify* <url>',
+          '│    _Unduh lagu dari Spotify_',
           '│',
           '├─「 *MEDIA & TOOLS* 」',
           '│ ⭔ *.s* [reply/kirim foto]',
@@ -383,10 +427,22 @@ module.exports = async (conn, m) => {
           '│    _Ubah teks jadi VN suara Google_',
           '│ ⭔ *.qr* <teks/link>',
           '│    _Generate gambar QR code_',
+          '│ ⭔ *.ocr* [reply foto]',
+          '│    _Baca teks dari gambar_',
+          '│ ⭔ *.removebg* [reply foto]',
+          '│    _Hapus background foto_',
+          '│',
+          '├─「 *GROUP ADMIN* 」',
+          '│ ⭔ *.antilink* on/off',
+          '│    _Auto hapus link grup_',
+          '│ ⭔ *.kick* @tag',
+          '│    _Keluarkan member grup_',
+          '│ ⭔ *.add* 08xxxx',
+          '│    _Tambahkan member ke grup_',
           '│',
           '├─「 *INTERACTIVE GAMES* 」',
-          '│ ⭔ *.flappy*  — Game Flappy Bird HD',
-          '│ ⭔ *.catur*   — Game Catur 2 Player HD',
+          '│ ⭔ *.flappy*  — Flappy Bird HD',
+          '│ ⭔ *.catur*   — Catur 2P HD',
           '│ ⭔ *.dadu*    *.koin*    *.suit*',
           '│ ⭔ *.tebak*   *.8ball*   *.quote*',
           '│ ⭔ *.fakta*',
@@ -396,11 +452,11 @@ module.exports = async (conn, m) => {
           '│',
           '╰────────────────────',
           '',
-          '💡 *Petunjuk Singkat:*',
-          '• `<...>` = Wajib diisi (contoh: `.tiktok https://...`)',
-          '• `[...]` = Opsional atau reply media di chat',
+          '💡 *Tips:*',
+          '• `<...>` = wajib diisi',
+          '• `[...]` = reply media / opsional',
           '',
-          '_Pecado WhatsApp Engine • Multi-Session Platform_'
+          '_Pecado WhatsApp Engine • Multi-Session_'
         ];
 
         return reply(menuSections.join('\n'));
