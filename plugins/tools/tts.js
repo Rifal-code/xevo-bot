@@ -32,7 +32,7 @@ module.exports = {
 
       await conn.sendMessage(m.chat, {
         audio: audioBuffer,
-        mimetype: 'audio/mp4',
+        mimetype: 'audio/ogg; codecs=opus',
         ptt: true // Dikirim sebagai Voice Note WhatsApp (gelombang suara hijau)
       }, { quoted: m });
 

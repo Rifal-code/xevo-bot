@@ -1,5 +1,7 @@
 'use strict';
 
+const igApi = require('@jerrycoder/instagram-api');
+
 module.exports = {
   name: 'instagram',
   aliases: ['ig', 'igdl', 'reel', 'reels'],
@@ -20,61 +22,62 @@ module.exports = {
     const targetUrl = urlMatch[0];
     await reply('⏳ Sedang memproses media Instagram, mohon tunggu sebentar...');
 
-    let mediaList = [];
-    let fetchError = null;
+    let mediaItems = [];
 
-    // Strategi 1: Fast & reliable SnapInsta / Vkr API
+    // Metode 1: Menggunakan @jerrycoder/instagram-api (SaveInsta Scraper)
     try {
-      const apiUrl = `https://vkrdownloader.vercel.app/server?vkr=${encodeURIComponent(targetUrl)}`;
-      const res = await fetch(apiUrl, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-      });
-      const json = await res.json().catch(() => null);
-
-      if (json && json.data) {
-        if (Array.isArray(json.data.downloads)) {
-          mediaList = json.data.downloads.map(d => ({
-            url: d.url,
-            type: d.type === 'video' || (d.format_id && d.format_id.includes('video')) ? 'video' : 'image'
+      const res = await igApi.instagram(targetUrl);
+      if (res) {
+        if (Array.isArray(res)) {
+          mediaItems = res.map(item => ({
+            url: item.url,
+            type: item.type === 'image' ? 'image' : 'video'
           }));
-        } else if (json.data.url) {
-          mediaList = [{ url: json.data.url, type: json.data.type || 'video' }];
+        } else if (res.url) {
+          mediaItems = [{
+            url: res.url,
+            type: res.type === 'image' ? 'image' : 'video'
+          }];
         }
       }
-    } catch (e) {
-      fetchError = e;
+    } catch (err) {
+      console.warn('⚠️ Metode 1 Instagram API gagal:', err?.message || err);
     }
 
-    // Strategi 2: Fallback API
-    if (!mediaList.length) {
+    // Metode 2: Fallback Scraper jika Metode 1 kosong
+    if (!mediaItems.length) {
       try {
         const fallbackUrl = `https://api.siputzx.my.id/api/d/igdl?url=${encodeURIComponent(targetUrl)}`;
-        const res = await fetch(fallbackUrl);
+        const res = await fetch(fallbackUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+        });
         const json = await res.json().catch(() => null);
-        if (json && json.status && Array.isArray(json.data)) {
-          mediaList = json.data.map(item => ({
+        if (json?.status && Array.isArray(json?.data)) {
+          mediaItems = json.data.map(item => ({
             url: item.url,
             type: item.url.includes('.mp4') ? 'video' : 'image'
           }));
         }
-      } catch (e) {
-        fetchError = e;
+      } catch (err) {
+        console.warn('⚠️ Metode 2 Fallback gagal:', err?.message || err);
       }
     }
 
-    if (!mediaList.length) {
-      return reply(`❌ Gagal mengunduh media Instagram. Pastikan akun tidak diprivate atau coba link lain.`);
+    if (!mediaItems.length) {
+      return reply('❌ Gagal mengunduh media Instagram. Pastikan link Instagram publik (tidak diprivate) dan masih aktif.');
     }
 
-    // Batasi pengiriman maksimal 5 media jika carousel panjang
-    const toSend = mediaList.slice(0, 5);
+    // Kirim maksimal 5 media jika konten berupa carousel
+    const toSend = mediaItems.slice(0, 5);
 
     for (let i = 0; i < toSend.length; i++) {
       const item = toSend[i];
-      const caption = i === 0 ? `📸 *INSTAGRAM DOWNLOADER*\n\n🔗 *Sumber:* ${targetUrl}\n_Media ${i + 1} dari ${mediaList.length}_` : undefined;
+      const caption = i === 0
+        ? `🎬 *INSTAGRAM DOWNLOADER*\n\n🔗 *Link:* ${targetUrl}\n_Media ${i + 1} dari ${mediaItems.length}_`
+        : undefined;
 
       try {
-        if (item.type === 'video' || item.url.includes('.mp4')) {
+        if (item.type === 'video') {
           await conn.sendMessage(m.chat, {
             video: { url: item.url },
             caption: caption,
@@ -87,7 +90,7 @@ module.exports = {
           }, { quoted: m });
         }
       } catch (sendErr) {
-        console.error('Error sending IG media item:', sendErr);
+        console.error('❌ Gagal mengirim media Instagram:', sendErr);
       }
     }
   }
