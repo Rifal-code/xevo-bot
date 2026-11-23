@@ -15,6 +15,7 @@ const path = require('path')
 const os = require('os')
 const util = require('util')
 const { randomInt } = require('crypto')
+const pluginLoader = require('./lib/plugin-loader.js')
 
 const guessGames = new Map()
 
@@ -267,6 +268,18 @@ module.exports = async (conn, m) => {
 
     const reply = m.reply.bind(m)
 
+    // Cek apakah perintah cocok dengan plugin modular (Downloader, Tools, dll)
+    const pluginHandled = await pluginLoader.handlePluginCommand({
+      conn,
+      m,
+      command,
+      args,
+      text: args.join(' '),
+      reply
+    })
+
+    if (pluginHandled) return
+
     switch (command) {
       case 'menu': {
         const runtime = process.uptime()
@@ -350,33 +363,43 @@ Klik tombol *ALL MENU* di bawah untuk melihat semua menu.`
         return
       }
 
-      case 'allmenu':
-        return reply([
+      case 'allmenu': {
+        const menuSections = [
           '*XEVO BOT — ALL MENU*',
           '',
-          'MAIN MENU',
-          '• .menu',
-          '• .ping',
-          '• .info',
-          '• .owner / .cekowner',
-          '• .myjid',
-          '• .flappy / .flappybird',
-          '• .catur / .chess',
-          '• .dadu — game HD interaktif',
-          '• .koin — game HD interaktif',
-          '• .8ball — game HD interaktif',
-          '• .suit — game HD interaktif',
-          '• .tebakangka / .tebak — game HD interaktif',
-          '• .quote — card HD',
-          '• .fakta — card HD',
+          '📥 DOWNLOADER',
+          '• .tiktok <url> — Video no wm & mp3 audio',
+          '• .ig <url> — Download Reels & Post IG',
           '',
-          'ALL USER MENU',
-          '• Semua fitur tersedia untuk nomor yang sudah pairing',
-          '• .public (creator)',
-          '• .self (creator)',
+          '🛠️ TOOLS & UTILITIES',
+          '• .s [pack|author] — Buat stiker WhatsApp dari gambar/video',
+          '• .toimg — Ubah stiker balik jadi gambar foto',
+          '• .tts [id/en] <teks> — Teks ke suara VN Google',
+          '• .qr <teks/link> — Bikin gambar QR Code instan',
           '',
-          'AI dan fitur spam/bug tidak disertakan.'
-        ].join('\n'))
+          '🎮 INTERACTIVE MINI APPS',
+          '• .flappy / .flappybird — Game Flappy Bird HD',
+          '• .catur / .chess — Game Catur 2 Player HD',
+          '• .dadu — Lempar dadu interaktif',
+          '• .koin — Lempar koin keberuntungan',
+          '• .8ball — Bola ramal 8-ball interaktif',
+          '• .suit — Gunting batu kertas vs bot',
+          '• .tebakangka — Game tebak angka 1-100',
+          '• .quote — Kartu kutipan inspiratif',
+          '• .fakta — Fakta unik dunia',
+          '',
+          'ℹ️ INFO & SYSTEM',
+          '• .menu — Info status & ringkasan bot',
+          '• .ping — Cek latensi & spesifikasi server',
+          '• .info — Detail informasi pesan & chat',
+          '• .myjid — Cek ID WhatsApp pengirim',
+          '• .owner — Kontak creator bot',
+          '',
+          '_Pecado WhatsApp Engine • Multi-Session Platform_'
+        ];
+
+        return reply(menuSections.join('\n'));
+      }
 
       case 'dadu':
       case 'dice':
