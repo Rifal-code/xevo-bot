@@ -167,7 +167,8 @@ module.exports = [
 
         const durSec = info.duration || (typeof dlResult.duration === 'number' ? dlResult.duration : 0);
         const durText = durSec ? fmtDuration(durSec) : (dlResult.duration || 'N/A');
-        const caption = `🎬 *${finalTitle}*\n⏱️ Durasi: ${durText}\n📺 Channel: ${finalChannel}`;
+        const sourceTag = dlResult.source ? ` • ${dlResult.source}` : '';
+        const caption = `🎬 *${finalTitle}*\n⏱️ Durasi: ${durText}\n📺 Channel: ${finalChannel}${sourceTag}`;
 
         await conn.sendMessage(m.chat, {
           video: buffer,
