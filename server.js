@@ -1,3 +1,14 @@
+console.log('====================================================')
+console.log('🚀 [DEPLOY VERIFICATION]: BOT-WHATSAPP V1.0.1')
+console.log('🕒 Waktu Boot Server:', new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }))
+try {
+  const ytdl = require('ytdl-lite')
+  console.log('🎬 YouTube Engine 1 (ytdl-lite): READY ✅')
+} catch (e) {
+  console.log('❌ YouTube Engine 1 (ytdl-lite): FAILED', e.message)
+}
+console.log('====================================================')
+
 const http = require('http')
 const https = require('https')
 const fs = require('fs')

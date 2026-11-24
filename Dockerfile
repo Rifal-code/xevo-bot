@@ -24,6 +24,9 @@ COPY . .
 # Ensure bin directory symlink for yt-dlp
 RUN mkdir -p /app/bin && ln -sf /usr/local/bin/yt-dlp /app/bin/yt-dlp
 
+# Build verification
+RUN node -e "console.log('🚀 [DOCKER BUILD CHECK]: Build verified at ' + new Date().toISOString() + ' | ytdl-lite: ' + (typeof require('ytdl-lite').ytmp4 === 'function'))"
+
 ENV PORT=5004
 EXPOSE 5004
 
