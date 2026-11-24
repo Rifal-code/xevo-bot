@@ -12,4 +12,5 @@ web/.next/
 web/node_modules/
 *.traineddata
 *.zip
+docs/log/
 
