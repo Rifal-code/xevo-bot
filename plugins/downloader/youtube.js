@@ -44,7 +44,7 @@ async function getInfo(url) {
 async function downloadVideo(url, quality = '480') {
   const out = makeTempPath('ytdl', 'mp4');
   const height = quality === '360' ? 360 : quality === '720' ? 720 : 480;
-  const formatStr = `bestvideo[height<=?${height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=?${height}]+bestaudio/best[height<=?${height}]/best`;
+  const formatStr = `bestvideo[height<=?${height}]+bestaudio/best[height<=?${height}]/b/bv*+ba/best`;
   
   await runYtDlp([
     '-f', formatStr,
@@ -168,8 +168,13 @@ module.exports = [
       } catch (err) {
         console.error('❌ ytmp4 error:', err);
         let msg = err.message;
-        if (msg.includes('confirm you\'re not a bot') || msg.includes('Sign in to confirm')) {
-          msg = 'YouTube memblokir server cloud. Pasang cookies.txt atau environment variable YOUTUBE_COOKIES di Railway untuk mengunduh video.';
+        if (
+          msg.includes('confirm you\'re not a bot') ||
+          msg.includes('Sign in to confirm') ||
+          msg.includes('Requested format is not available') ||
+          msg.includes('This video is not available')
+        ) {
+          msg = 'YouTube memblokir server cloud Railway untuk video langsung. Pasang environment variable YOUTUBE_COOKIES di Railway agar video dapat diunduh tanpa blokir bot.';
         }
         reply(`❌ Gagal mengunduh video: ${msg}`);
       } finally {
