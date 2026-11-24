@@ -9,11 +9,105 @@ async function downloadBuffer(url) {
     responseType: 'arraybuffer',
     timeout: 30000,
     headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Referer': 'https://www.tiktok.com/'
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
     }
   });
   return Buffer.from(res.data);
+}
+
+/**
+ * Multi-Engine TikTok Resolver:
+ * Mencoba beberapa engine API untuk mengekstrak video TikTok tanpa watermark.
+ */
+async function resolveTikTok(targetUrl) {
+  // Bersihkan parameter tracking seperti ?is_from_webapp=...
+  const cleanUrl = targetUrl.split('?')[0];
+
+  // --- ENGINE 1: Siputzx API (dengan CDN FastDL yang sangat cepat & kebal blokir) ---
+  try {
+    const res = await axios.get(`https://api.siputzx.my.id/api/d/tiktok?url=${encodeURIComponent(cleanUrl)}`, {
+      timeout: 12000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+    const d = res.data?.data;
+    if (d && (d.video?.hd?.url || d.video?.sd?.url)) {
+      return {
+        title: d.description || 'Video TikTok',
+        author: d.author || d.username || 'TikTok User',
+        videoUrl: d.video?.hd?.url || d.video?.sd?.url,
+        audioUrl: d.music?.url || null,
+        likes: 0,
+        duration: 0,
+        source: 'FastDL'
+      };
+    }
+  } catch (err) {
+    console.warn('⚠️ Engine Siputzx TikTok gagal, mencoba engine berikutnya:', err.message);
+  }
+
+  // --- ENGINE 2: TikWM API (POST & GET) ---
+  try {
+    const res = await axios.post('https://www.tikwm.com/api/', `url=${encodeURIComponent(cleanUrl)}&hd=1`, {
+      timeout: 12000,
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+      }
+    });
+    const info = res.data?.data;
+    if (res.data?.code === 0 && info) {
+      let vUrl = info.hdplay || info.play || info.wmplay;
+      if (vUrl && vUrl.startsWith('/')) vUrl = `https://www.tikwm.com${vUrl}`;
+      let aUrl = info.music;
+      if (aUrl && aUrl.startsWith('/')) aUrl = `https://www.tikwm.com${aUrl}`;
+
+      return {
+        title: info.title || 'Video TikTok',
+        author: info.author?.nickname || info.author?.unique_id || 'TikTok User',
+        videoUrl: vUrl,
+        audioUrl: aUrl,
+        likes: info.digg_count || 0,
+        duration: info.duration || 0,
+        source: 'TikWM'
+      };
+    }
+  } catch (err) {
+    console.warn('⚠️ Engine TikWM TikTok gagal:', err.message);
+  }
+
+  // Coba TikWM dengan URL original jika cleanUrl berbeda
+  if (cleanUrl !== targetUrl) {
+    try {
+      const res = await axios.post('https://www.tikwm.com/api/', `url=${encodeURIComponent(targetUrl)}&hd=1`, {
+        timeout: 12000,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+        }
+      });
+      const info = res.data?.data;
+      if (res.data?.code === 0 && info) {
+        let vUrl = info.hdplay || info.play || info.wmplay;
+        if (vUrl && vUrl.startsWith('/')) vUrl = `https://www.tikwm.com${vUrl}`;
+        let aUrl = info.music;
+        if (aUrl && aUrl.startsWith('/')) aUrl = `https://www.tikwm.com${aUrl}`;
+
+        return {
+          title: info.title || 'Video TikTok',
+          author: info.author?.nickname || info.author?.unique_id || 'TikTok User',
+          videoUrl: vUrl,
+          audioUrl: aUrl,
+          likes: info.digg_count || 0,
+          duration: info.duration || 0,
+          source: 'TikWM'
+        };
+      }
+    } catch { }
+  }
+
+  return null;
 }
 
 module.exports = {
@@ -38,23 +132,14 @@ module.exports = {
 
     await reply('⏳ Sedang memproses video TikTok, mohon tunggu sebentar...');
 
-    // --- METODE 1: TikWM API ---
+    // --- METODE 1: Multi-Engine Fast Resolver (Siputzx FastDL & TikWM) ---
     try {
-      const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(targetUrl)}`;
-      const res = await axios.get(apiUrl, {
-        timeout: 15000,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
-      });
-
-      const data = res.data;
-      if (data && data.code === 0 && data.data) {
-        const info = data.data;
+      const info = await resolveTikTok(targetUrl);
+      if (info) {
         const title = info.title || 'Video TikTok';
-        const author = info.author?.nickname || info.author?.unique_id || 'TikTok User';
-        const videoUrl = info.play;
-        const audioUrl = info.music;
+        const author = info.author || 'TikTok User';
+        const videoUrl = info.videoUrl;
+        const audioUrl = info.audioUrl;
 
         if (wantAudio && audioUrl) {
           const audioBuffer = await downloadBuffer(audioUrl);
@@ -78,9 +163,9 @@ module.exports = {
           const videoBuffer = await downloadBuffer(videoUrl);
           const caption = `🎬 *TIKTOK DOWNLOADER (NO WATERMARK)*\n\n` +
             `👤 *Pembuat:* ${author}\n` +
-            `📝 *Judul:* ${title}\n` +
-            `⏱️ *Durasi:* ${info.duration || 0} detik\n` +
-            `❤️ *Likes:* ${(info.digg_count || 0).toLocaleString()}\n\n` +
+            `📝 *Judul:* ${title.slice(0, 200)}\n` +
+            (info.duration ? `⏱️ *Durasi:* ${info.duration} detik\n` : '') +
+            (info.likes ? `❤️ *Likes:* ${info.likes.toLocaleString()}\n\n` : '\n') +
             `_💡 Tips: Ketik \`.tiktok ${targetUrl} mp3\` untuk audio saja._`;
 
           await conn.sendMessage(m.chat, {
@@ -91,8 +176,8 @@ module.exports = {
           return;
         }
       }
-    } catch (tikwmErr) {
-      console.warn('⚠️ TikWM gagal, mencoba fallback yt-dlp:', tikwmErr?.message || tikwmErr);
+    } catch (apiErr) {
+      console.warn('⚠️ Fast resolver TikTok gagal, mencoba fallback yt-dlp:', apiErr?.message || apiErr);
     }
 
     // --- METODE 2: Fallback yt-dlp ---
