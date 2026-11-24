@@ -7,6 +7,8 @@ const {
   runYtDlp,
   makeTempPath,
   cleanFile,
+  downloadYouTubeVideo,
+  downloadYouTubeAudio,
   downloadMusicWithFallback,
   getYouTubeOEmbed,
   MAX_AUDIO_SIZE,
@@ -14,6 +16,34 @@ const {
 } = require('../../lib/ytdlp.js');
 
 async function getInfo(url) {
+  // 1. Coba ytdl-lite (sangat cepat & kebal blokir bot datacenter)
+  try {
+    const { getInfo: ytdlInfo } = require('ytdl-lite');
+    const info = await ytdlInfo(url);
+    if (info && info.title) {
+      return {
+        title: info.title,
+        duration: info.seconds || 0,
+        channel: info.author || 'YouTube',
+        size: 0
+      };
+    }
+  } catch { }
+
+  // 2. Fallback ambil info dari oEmbed
+  try {
+    const oembed = await getYouTubeOEmbed(url);
+    if (oembed && oembed.title) {
+      return {
+        title: oembed.title,
+        duration: 0,
+        channel: oembed.author || 'YouTube',
+        size: 0
+      };
+    }
+  } catch { }
+
+  // 3. Fallback yt-dlp
   try {
     const raw = await runYtDlp([
       '--print', '%(title)s|||%(duration)s|||%(channel)s|||%(filesize_approx,filesize)s',
@@ -26,41 +56,14 @@ async function getInfo(url) {
       channel: channel || 'Unknown',
       size: parseInt(size) || 0
     };
-  } catch (err) {
-    // Fallback ambil info dari oEmbed jika kena blokir yt-dlp
-    const oembed = await getYouTubeOEmbed(url);
-    if (oembed) {
-      return {
-        title: oembed.title,
-        duration: 0,
-        channel: oembed.author,
-        size: 0
-      };
-    }
-    throw err;
+  } catch {
+    return {
+      title: 'YouTube Media',
+      duration: 0,
+      channel: 'YouTube',
+      size: 0
+    };
   }
-}
-
-async function downloadVideo(url, quality = '480') {
-  const out = makeTempPath('ytdl', 'mp4');
-  const height = quality === '360' ? 360 : quality === '720' ? 720 : 480;
-  const formatStr = `bestvideo[height<=?${height}]+bestaudio/best[height<=?${height}]/b/bv*+ba/best`;
-  
-  await runYtDlp([
-    '-f', formatStr,
-    '--merge-output-format', 'mp4',
-    '-o', out,
-    '--max-filesize', `${MAX_VIDEO_SIZE}`,
-    url
-  ]);
-  if (!fs.existsSync(out)) {
-    const dir = path.dirname(out);
-    const base = path.basename(out, '.mp4');
-    const files = fs.readdirSync(dir).filter(f => f.startsWith(base));
-    if (files.length > 0) return path.join(dir, files[0]);
-    throw new Error('File video tidak ditemukan setelah download.');
-  }
-  return out;
 }
 
 function fmtDuration(seconds) {
@@ -94,26 +97,28 @@ module.exports = [
       let filePath = null;
       try {
         const info = await getInfo(url);
-        if (info.duration > 600) return reply('❌ Durasi melebihi 10 menit. Gunakan video yang lebih pendek.');
+        if (info.duration > 900) return reply('❌ Durasi melebihi 15 menit. Gunakan video yang lebih pendek.');
 
         const dlResult = await downloadMusicWithFallback(url, info.title);
         filePath = dlResult.filePath;
+        const finalTitle = dlResult.title && dlResult.title !== 'Audio YouTube' ? dlResult.title : info.title;
+        const finalChannel = dlResult.channel && dlResult.channel !== 'YouTube' ? dlResult.channel : info.channel;
         const buffer = fs.readFileSync(filePath);
 
         if (buffer.length > MAX_AUDIO_SIZE) {
           return reply('❌ File terlalu besar (maks 15MB). Coba video yang lebih pendek.');
         }
 
-        const sourceNote = dlResult.source.includes('Fallback') ? ` • ${dlResult.source}` : '';
+        const sourceNote = dlResult.source ? ` • ${dlResult.source}` : '';
 
         await conn.sendMessage(m.chat, {
           audio: buffer,
           mimetype: 'audio/mpeg',
-          fileName: `${info.title.slice(0, 60)}.mp3`,
+          fileName: `${finalTitle.slice(0, 60)}.mp3`,
           contextInfo: {
             externalAdReply: {
-              title: `🎵 ${info.title.slice(0, 50)}`,
-              body: `${info.channel}${sourceNote}`,
+              title: `🎵 ${finalTitle.slice(0, 50)}`,
+              body: `${finalChannel}${sourceNote}`,
               mediaType: 1,
               sourceUrl: url
             }
@@ -148,16 +153,21 @@ module.exports = [
       let filePath = null;
       try {
         const info = await getInfo(url);
-        if (info.duration > 600) return reply('❌ Durasi melebihi 10 menit. Gunakan video yang lebih pendek.');
+        if (info.duration > 900) return reply('❌ Durasi melebihi 15 menit. Gunakan video yang lebih pendek.');
 
-        filePath = await downloadVideo(url, quality);
+        const dlResult = await downloadYouTubeVideo(url, quality);
+        filePath = dlResult.filePath;
+        const finalTitle = dlResult.title && dlResult.title !== 'Video YouTube' ? dlResult.title : info.title;
+        const finalChannel = dlResult.channel && dlResult.channel !== 'YouTube' ? dlResult.channel : info.channel;
         const buffer = fs.readFileSync(filePath);
 
         if (buffer.length > MAX_VIDEO_SIZE) {
           return reply('❌ File video terlalu besar (maks 50MB).');
         }
 
-        const caption = `🎬 *${info.title}*\n⏱️ Durasi: ${fmtDuration(info.duration)}\n📺 Channel: ${info.channel}`;
+        const durSec = info.duration || (typeof dlResult.duration === 'number' ? dlResult.duration : 0);
+        const durText = durSec ? fmtDuration(durSec) : (dlResult.duration || 'N/A');
+        const caption = `🎬 *${finalTitle}*\n⏱️ Durasi: ${durText}\n📺 Channel: ${finalChannel}`;
 
         await conn.sendMessage(m.chat, {
           video: buffer,

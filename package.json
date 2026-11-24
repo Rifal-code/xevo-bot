@@ -28,7 +28,8 @@
     "qrcode": "^1.5.4",
     "tesseract.js": "^7.0.0",
     "y2mate-dl": "^1.0.4",
-    "yt-search": "^2.13.1"
+    "yt-search": "^2.13.1",
+    "ytdl-lite": "^1.0.1"
   },
   "engines": {
     "node": ">=20.0.0"
