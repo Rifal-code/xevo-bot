@@ -167,16 +167,8 @@ module.exports = [
 
       } catch (err) {
         console.error('❌ ytmp4 error:', err);
-        let msg = err.message;
-        if (
-          msg.includes('confirm you\'re not a bot') ||
-          msg.includes('Sign in to confirm') ||
-          msg.includes('Requested format is not available') ||
-          msg.includes('This video is not available')
-        ) {
-          msg = 'YouTube memblokir server cloud Railway untuk video langsung. Pasang environment variable YOUTUBE_COOKIES di Railway agar video dapat diunduh tanpa blokir bot.';
-        }
-        reply(`❌ Gagal mengunduh video: ${msg}`);
+        const errMsg = err.message || String(err);
+        reply(`❌ Gagal mengunduh video:\n${errMsg.slice(0, 300)}`);
       } finally {
         cleanFile(filePath);
       }
