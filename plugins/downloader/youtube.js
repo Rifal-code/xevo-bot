@@ -179,7 +179,7 @@ module.exports = [
       } catch (err) {
         console.error('❌ ytmp4 error:', err);
         const errMsg = err.message || String(err);
-        reply(`❌ Gagal mengunduh video:\n${errMsg.slice(0, 300)}`);
+        reply(`❌ Gagal mengunduh video:\n${errMsg.slice(0, 600)}`);
       } finally {
         cleanFile(filePath);
       }
