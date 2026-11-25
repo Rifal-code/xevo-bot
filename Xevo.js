@@ -17,6 +17,7 @@ const util = require('util')
 const { randomInt } = require('crypto')
 const pluginLoader = require('./lib/plugin-loader.js')
 const groupDb = require('./lib/group-db.js')
+const afk = require('./lib/afk.js')
 
 const guessGames = new Map()
 
@@ -285,6 +286,77 @@ module.exports = async (conn, m) => {
       }
     }
 
+    const prefix = String(config.prefix || '.')
+    const trimmedBody = body.trim()
+
+    // 1. Cek status AFK (auto-clear saat user AFK kirim pesan, auto-reply saat user AFK di-tag/reply)
+    if (!m.isBaileys && afk.hasAnyAfk()) {
+      const isAfkCmd = trimmedBody.toLowerCase().startsWith(`${prefix}afk`)
+      const targets = new Set()
+      const mentioned = m.mentionedJid || m.msg?.contextInfo?.mentionedJid || []
+      for (const jid of mentioned) targets.add(jid)
+      if (m.quoted?.sender) targets.add(m.quoted.sender)
+
+      // Helper untuk resolve @lid -> nomor telepon asli agar mention di grup tetap terdeteksi
+      let groupParticipants = null
+      const resolveJidCandidates = async (jid) => {
+        const candidates = [jid]
+        if (!jid) return candidates
+        const cleanId = String(jid).replace(/:\d+@/, '@').split('@')[0]
+        const botLid = conn.user?.lid ? String(conn.user.lid).replace(/:\d+@/, '@').split('@')[0] : ''
+        const botId = conn.user?.id ? String(conn.user.id).replace(/:\d+@/, '@').split('@')[0] : ''
+        if (botLid && cleanId === botLid && botId) {
+          candidates.push(`${botId}@s.whatsapp.net`)
+        }
+        if (String(jid).endsWith('@lid') && m.isGroup) {
+          try {
+            if (!groupParticipants) {
+              const gm = await conn.groupMetadata(m.chat)
+              groupParticipants = gm?.participants || []
+            }
+            const p = groupParticipants.find(x => x.id === jid || x.lid === jid)
+            if (p?.phoneNumber) candidates.push(p.phoneNumber)
+            if (p?.jid) candidates.push(p.jid)
+          } catch { }
+        }
+        return candidates
+      }
+
+      for (const tJid of targets) {
+        if (!tJid || tJid === m.sender) continue
+        const candidates = await resolveJidCandidates(tJid)
+        let targetAfk = null
+        for (const c of candidates) {
+          targetAfk = afk.getAfk(c)
+          if (targetAfk) break
+        }
+        if (targetAfk) {
+          const dur = afk.formatAfkDuration(targetAfk.since)
+          const tNum = String(targetAfk.jid || tJid).split('@')[0]
+          await m.reply(`💤 *@${tNum}* sedang *AFK*\n📝 Alasan: _${targetAfk.reason}_\n⏱️ Sejak: ${dur} yang lalu`, null, {
+            mentions: [tJid]
+          })
+          break
+        }
+      }
+
+      if (!isAfkCmd) {
+        const senderCandidates = await resolveJidCandidates(m.sender)
+        for (const c of senderCandidates) {
+          const senderAfk = afk.getAfk(c)
+          if (senderAfk) {
+            afk.clearAfk(c)
+            const dur = afk.formatAfkDuration(senderAfk.since)
+            const sNum = String(senderAfk.jid || m.sender).split('@')[0]
+            await m.reply(`👋 Selamat datang kembali *@${sNum}*!\nStatus AFK dicabut setelah *${dur}*.`, null, {
+              mentions: [m.sender]
+            })
+            break
+          }
+        }
+      }
+    }
+
     let command = ''
     let args = []
     if (isButtonResponse) {
@@ -293,7 +365,6 @@ module.exports = async (conn, m) => {
       args = parts
     } else {
       const trimmed = body.trim()
-      const prefix = String(config.prefix || '.')
       if (!trimmed.startsWith(prefix)) return
       const clean = trimmed.slice(prefix.length).trim()
       if (!clean) return
@@ -421,6 +492,8 @@ module.exports = async (conn, m) => {
           '├─「 *MEDIA & TOOLS* 」',
           '│ ⭔ *.s* [reply/kirim foto]',
           '│    _Ubah gambar/video jadi stiker_',
+          '│ ⭔ *.brat* <teks>',
+          '│    _Stiker teks gaya Brat viral_',
           '│ ⭔ *.toimg* [reply stiker]',
           '│    _Ubah stiker balik jadi foto_',
           '│ ⭔ *.tts* <teks>',
@@ -431,6 +504,8 @@ module.exports = async (conn, m) => {
           '│    _Baca teks dari gambar_',
           '│ ⭔ *.removebg* [reply foto]',
           '│    _Hapus background foto_',
+          '│ ⭔ *.afk* [alasan]',
+          '│    _Tandai status sedang AFK_',
           '│',
           '├─「 *GROUP ADMIN* 」',
           '│ ⭔ *.antilink* on/off',
