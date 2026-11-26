@@ -492,6 +492,8 @@ module.exports = async (conn, m) => {
           '├─「 *MEDIA & TOOLS* 」',
           '│ ⭔ *.s* [reply/kirim foto]',
           '│    _Ubah gambar/video jadi stiker_',
+          '│ ⭔ *.ssound* [kirim/reply video bersuara | reply VN + kirim foto/video]',
+          '│    _Buat stiker bersuara (maks 10 dtk)_',
           '│ ⭔ *.brat* <teks>',
           '│    _Stiker teks gaya Brat viral_',
           '│ ⭔ *.toimg* [reply stiker]',
