@@ -5,7 +5,7 @@
 const fs = require('fs')
 const path = require('path')
 const baileys = require('@whiskeysockets/baileys')
-const { useMultiFileAuthState, DisconnectReason } = baileys
+const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = baileys
 const Browsers = baileys.Browsers || { ubuntu: (name = 'Chrome') => ['Ubuntu', name, '1.0.0'] }
 const pino = require('pino')
 const { Boom } = require('@hapi/boom')
@@ -350,7 +350,14 @@ async function startSession(number, options = {}) {
     pendingPairing: options.pendingPairing === true
   }
 
+  let waVersion
+  try {
+    const latest = await fetchLatestBaileysVersion()
+    if (latest?.version) waVersion = latest.version
+  } catch { }
+
   const conn = makeWASocketSimple({
+    ...(waVersion ? { version: waVersion } : {}),
     logger: pino({ level: 'silent' }),
     printQRInTerminal: false,
     browser: Browsers.ubuntu('Chrome'),
@@ -564,8 +571,15 @@ async function requestPairing(phoneNumber) {
         }
       }, PAIRING_TIMEOUT_MS)
 
-      // Tunggu socket siap sebelum meminta pairing code.
-      await new Promise(resolve => setTimeout(resolve, 1200))
+      // Tunggu socket siap (WebSocket terbuka) sebelum meminta pairing code.
+      for (let i = 0; i < 15; i++) {
+        if (session.removed || sessions.get(number) !== session) {
+          throw new Error('Koneksi pairing ditutup sebelum kode dibuat. Silakan coba lagi.')
+        }
+        if (session.conn?.ws?.isOpen) break
+        await new Promise(resolve => setTimeout(resolve, 250))
+      }
+      await new Promise(resolve => setTimeout(resolve, 600))
       if (session.removed || sessions.get(number) !== session) {
         throw new Error('Koneksi pairing ditutup sebelum kode dibuat. Silakan coba lagi.')
       }

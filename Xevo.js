@@ -18,6 +18,7 @@ const { randomInt } = require('crypto')
 const pluginLoader = require('./lib/plugin-loader.js')
 const groupDb = require('./lib/group-db.js')
 const afk = require('./lib/afk.js')
+const gameSession = require('./lib/game-session.js')
 
 const guessGames = new Map()
 
@@ -357,6 +358,12 @@ module.exports = async (conn, m) => {
       }
     }
 
+    // 2. Cek jawaban game teks interaktif (tanpa prefix)
+    if (!isButtonResponse && !trimmedBody.startsWith(prefix)) {
+      const answered = await gameSession.handleGameMessage(m, m.reply.bind(m))
+      if (answered) return
+    }
+
     let command = ''
     let args = []
     if (isButtonResponse) {
@@ -496,6 +503,8 @@ module.exports = async (conn, m) => {
           '│    _Stiker bersuara ≤10 dtk (atau reply VN/audio + kirim foto/video bisu)_',
           '│ ⭔ *.brat* <teks>',
           '│    _Stiker teks gaya Brat viral_',
+          '│ ⭔ *.qc* <teks>',
+          '│    _Stiker bubble Quote Chat WA_',
           '│ ⭔ *.toimg* [reply stiker]',
           '│    _Ubah stiker balik jadi foto_',
           '│ ⭔ *.tts* <teks>',
@@ -508,21 +517,39 @@ module.exports = async (conn, m) => {
           '│    _Hapus background foto_',
           '│ ⭔ *.afk* [alasan]',
           '│    _Tandai status sedang AFK_',
+          '│ ⭔ *.short* <url>',
+          '│    _Perpendek link panjang_',
+          '│',
+          '├─「 *AI & INFO INDONESIA* 」',
+          '│ ⭔ *.ai* <pertanyaan>',
+          '│    _Tanya jawab dengan AI pintar_',
+          '│ ⭔ *.aiimg* <prompt>',
+          '│    _Buat gambar AI dari teks_',
+          '│ ⭔ *.jadwalsholat* <kota>',
+          '│    _Cek jadwal sholat akurat_',
+          '│ ⭔ *.gempa*',
+          '│    _Info gempa terkini BMKG_',
           '│',
           '├─「 *GROUP ADMIN* 」',
+          '│ ⭔ *.hidetag* <pesan>',
+          '│    _Tag semua member tersembunyi_',
+          '│ ⭔ *.tagall* [pesan]',
+          '│    _Mention seluruh anggota grup_',
           '│ ⭔ *.antilink* on/off',
           '│    _Auto hapus link grup_',
-          '│ ⭔ *.kick* @tag',
-          '│    _Keluarkan member grup_',
-          '│ ⭔ *.add* 08xxxx',
-          '│    _Tambahkan member ke grup_',
+          '│ ⭔ *.kick* @tag   *.add* 628xxx',
+          '│ ⭔ *.promote* @tag *.demote* @tag',
+          '│ ⭔ *.open*        *.close*',
+          '│ ⭔ *.del* [reply pesan]',
           '│',
           '├─「 *INTERACTIVE GAMES* 」',
-          '│ ⭔ *.flappy*  — Flappy Bird HD',
-          '│ ⭔ *.catur*   — Catur 2P HD',
-          '│ ⭔ *.dadu*    *.koin*    *.suit*',
-          '│ ⭔ *.tebak*   *.8ball*   *.quote*',
-          '│ ⭔ *.fakta*',
+          '│ ⭔ *.caklontong*  *.family100*',
+          '│ ⭔ *.susunkata*   *.siapakahaku*',
+          '│ ⭔ *.cekkhodam*   *.truth* / *.dare*',
+          '│ ⭔ *.hint*        *.nyerah*',
+          '│ ⭔ *.flappy*      *.catur*',
+          '│ ⭔ *.dadu*  *.koin*  *.suit*  *.tebak*',
+          '│ ⭔ *.8ball* *.quote* *.fakta*',
           '│',
           '├─「 *SYSTEM & INFO* 」',
           '│ ⭔ *.menu*    *.ping*    *.owner*',
