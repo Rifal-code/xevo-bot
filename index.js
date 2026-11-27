@@ -503,6 +503,7 @@ async function startSession(number, options = {}) {
       session.connected = false
       const statusCode = new Boom(lastDisconnect?.error)?.output?.statusCode
       const loggedOut = statusCode === DisconnectReason.loggedOut
+      const restartRequired = statusCode === DisconnectReason.restartRequired
       const registered = !!session.state?.creds?.registered
 
       // User sengaja menekan PUTUS di dashboard: jangan reconnect otomatis dan JANGAN hapus auth
@@ -511,16 +512,16 @@ async function startSession(number, options = {}) {
         return
       }
 
-      // Hanya hapus auth jika WhatsApp HP sengaja menekan Log Out / Keluar
-      // atau jika saat pairing baru pertama kali gagal sebelum tertaut
-      if (loggedOut || (!registered && session.pendingPairing)) {
-        const reason = loggedOut ? 'logged_out_from_device' : 'pairing_failed_or_not_linked'
+      // Saat pairing, WhatsApp sering memicu restartRequired (515) setelah kode dimasukkan.
+      // Jangan hapus sesi pada 515 — biarkan reconnect otomatis agar penautan selesai.
+      if (loggedOut || (!registered && session.pendingPairing && !restartRequired)) {
+        const reason = loggedOut ? 'logged_out_from_device' : `pairing_failed_or_not_linked (code=${statusCode || 'unknown'})`
         console.log(`🗑️ Hapus sesi ${number}: ${reason}`)
         await removeSession(number, reason)
         return
       }
 
-      // Sesi yang sudah terdaftar: coba reconnect untuk gangguan koneksi sementara
+      // Sesi yang sudah terdaftar (atau restartRequired 515 saat pairing): coba reconnect
       if (session.reconnecting) return
       session.reconnecting = true
       session.reconnectAttempts += 1
@@ -531,16 +532,18 @@ async function startSession(number, options = {}) {
         return
       }
 
+      const reconnectDelay = restartRequired ? 1000 : 5000
       if (session.reconnectTimeout) clearTimeout(session.reconnectTimeout)
       session.reconnectTimeout = setTimeout(async () => {
         if (session.removed || session.manualDisconnect) return
+        const keepPendingPairing = session.pendingPairing
         sessions.delete(number)
         try {
-          await startSession(number)
+          await startSession(number, { pendingPairing: keepPendingPairing })
         } catch (err) {
           console.error(`❌ Reconnect error (${number}):`, err)
         }
-      }, 5000)
+      }, reconnectDelay)
     }
   })
 
