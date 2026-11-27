@@ -79,13 +79,13 @@ try {
 let saveProcessedMsgTimeout = null
 function persistProcessedMsgIds() {
   if (saveProcessedMsgTimeout) return
-  saveProcessedMsgTimeout = setTimeout(() => {
+  saveProcessedMsgTimeout = setTimeout(async () => {
     saveProcessedMsgTimeout = null
     try {
       const arr = Array.from(processedMsgIds).slice(-2000)
-      fs.writeFileSync(PROCESSED_MSGS_FILE, JSON.stringify(arr), 'utf8')
+      await fs.promises.writeFile(PROCESSED_MSGS_FILE, JSON.stringify(arr), 'utf8')
     } catch { }
-  }, 3000)
+  }, 5000)
 }
 
 function storeMessage(keyId, message) {
@@ -170,14 +170,19 @@ try {
   }
 } catch {}
 
+let saveFollowedTimeout = null
 function saveFollowedChannels() {
-  try {
-    const obj = {}
-    for (const [num, set] of followedChannels.entries()) {
-      obj[num] = Array.from(set)
-    }
-    fs.writeFileSync(FOLLOWED_CHANNELS_FILE, JSON.stringify(obj, null, 2), 'utf8')
-  } catch {}
+  if (saveFollowedTimeout) return
+  saveFollowedTimeout = setTimeout(async () => {
+    saveFollowedTimeout = null
+    try {
+      const obj = {}
+      for (const [num, set] of followedChannels.entries()) {
+        obj[num] = Array.from(set)
+      }
+      await fs.promises.writeFile(FOLLOWED_CHANNELS_FILE, JSON.stringify(obj, null, 2), 'utf8')
+    } catch { }
+  }, 2000)
 }
 
 function isChannelFollowed(number, jid) {
@@ -563,7 +568,9 @@ async function startSession(number, options = {}) {
         return
       }
 
-      const reconnectDelay = restartRequired ? 1000 : 5000
+      const reconnectDelay = restartRequired
+        ? 500
+        : 3000 + Math.floor(Math.random() * 4000)
       if (session.reconnectTimeout) clearTimeout(session.reconnectTimeout)
       session.reconnectTimeout = setTimeout(async () => {
         if (session.removed || session.manualDisconnect) return
@@ -682,11 +689,16 @@ async function connectExistingSessions() {
     .filter(x => x.isDirectory() && isValidNumber(x.name))
     .map(x => x.name)
 
-  for (const number of entries) {
+  for (let i = 0; i < entries.length; i++) {
+    const number = entries[i]
     try {
       await startSession(number)
     } catch (err) {
       console.warn(`⚠️ Startup session skipped (${number}):`, err?.message || err)
+    }
+    // Beri jeda bertahap agar 30+ sesi tidak membebani CPU/Disk Railway secara bersamaan
+    if (i < entries.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 350))
     }
   }
 
