@@ -114,6 +114,37 @@ function markMessageProcessed(id) {
 const PAIRING_TIMEOUT_MS = Number(process.env.PAIRING_TIMEOUT_MS || 120000)
 const MAX_RECONNECT_ATTEMPTS = Number(process.env.MAX_RECONNECT_ATTEMPTS || 5)
 
+// Cache versi WhatsApp Web di memori (TTL 6 jam) agar tidak fetch berulang kali saat startup/pairing
+let cachedWaVersion = null
+let cachedWaVersionAt = 0
+let waVersionPromise = null
+const WA_VERSION_TTL_MS = 6 * 60 * 60 * 1000
+
+async function getCachedWaVersion() {
+  if (cachedWaVersion && Date.now() - cachedWaVersionAt < WA_VERSION_TTL_MS) {
+    return cachedWaVersion
+  }
+  if (waVersionPromise) return waVersionPromise
+
+  waVersionPromise = (async () => {
+    try {
+      const latest = await Promise.race([
+        fetchLatestBaileysVersion(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('waVersion timeout')), 3000))
+      ])
+      if (latest?.version) {
+        cachedWaVersion = latest.version
+        cachedWaVersionAt = Date.now()
+      }
+    } catch { }
+    return cachedWaVersion
+  })().finally(() => {
+    waVersionPromise = null
+  })
+
+  return waVersionPromise
+}
+
 // Channel WhatsApp yang otomatis di-follow setiap sesi berhasil terhubung.
 const AUTO_FOLLOW_CHANNELS = [
   '120363422066682134@newsletter',
@@ -350,11 +381,7 @@ async function startSession(number, options = {}) {
     pendingPairing: options.pendingPairing === true
   }
 
-  let waVersion
-  try {
-    const latest = await fetchLatestBaileysVersion()
-    if (latest?.version) waVersion = latest.version
-  } catch { }
+  const waVersion = await getCachedWaVersion()
 
   const conn = makeWASocketSimple({
     ...(waVersion ? { version: waVersion } : {}),
@@ -583,7 +610,26 @@ async function requestPairing(phoneNumber) {
 
       session = await startSession(number, { pendingPairing: true })
 
-      // Jika user tidak menyelesaikan pairing, hapus sesi otomatis.
+      // Tunggu socket siap (WebSocket terbuka) sebelum meminta pairing code.
+      for (let i = 0; i < 20; i++) {
+        if (session.removed || sessions.get(number) !== session) {
+          throw new Error('Koneksi pairing ditutup sebelum kode dibuat. Silakan coba lagi.')
+        }
+        if (session.conn?.ws?.isOpen) break
+        await new Promise(resolve => setTimeout(resolve, 200))
+      }
+      await new Promise(resolve => setTimeout(resolve, 400))
+      if (session.removed || sessions.get(number) !== session) {
+        throw new Error('Koneksi pairing ditutup sebelum kode dibuat. Silakan coba lagi.')
+      }
+
+      const code = await Promise.race([
+        session.conn.requestPairingCode(number),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Permintaan pairing code ke WhatsApp timeout (15s). Silakan coba lagi.')), 15000))
+      ])
+      if (!code) throw new Error('WhatsApp belum memberikan pairing code. Coba generate ulang beberapa detik lagi.')
+
+      // Mulai hitung masa berlaku kode (120s) SETELAH kode berhasil didapatkan
       if (session.pairingTimeout) clearTimeout(session.pairingTimeout)
       session.pairingTimeout = setTimeout(() => {
         const current = sessions.get(number)
@@ -591,22 +637,6 @@ async function requestPairing(phoneNumber) {
           removeSession(number, 'pairing_timeout').catch(err => console.error(err))
         }
       }, PAIRING_TIMEOUT_MS)
-
-      // Tunggu socket siap (WebSocket terbuka) sebelum meminta pairing code.
-      for (let i = 0; i < 15; i++) {
-        if (session.removed || sessions.get(number) !== session) {
-          throw new Error('Koneksi pairing ditutup sebelum kode dibuat. Silakan coba lagi.')
-        }
-        if (session.conn?.ws?.isOpen) break
-        await new Promise(resolve => setTimeout(resolve, 250))
-      }
-      await new Promise(resolve => setTimeout(resolve, 600))
-      if (session.removed || sessions.get(number) !== session) {
-        throw new Error('Koneksi pairing ditutup sebelum kode dibuat. Silakan coba lagi.')
-      }
-
-      const code = await session.conn.requestPairingCode(number)
-      if (!code) throw new Error('WhatsApp belum memberikan pairing code. Coba generate ulang beberapa detik lagi.')
 
       return { code, number }
     } catch (err) {
