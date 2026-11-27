@@ -154,6 +154,9 @@ function PairingContent() {
       }
 
       setPairingCode(json.data.pairingCode);
+      if (typeof json.data?.expiresInSeconds === "number") {
+        setTimeLeft(json.data.expiresInSeconds);
+      }
     } catch (err: any) {
       setError(err?.message || "Terjadi kesalahan saat memproses pairing.");
     } finally {

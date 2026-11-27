@@ -5,7 +5,7 @@
 const fs = require('fs')
 const path = require('path')
 const baileys = require('@whiskeysockets/baileys')
-const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = baileys
+const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, fetchLatestWaWebVersion } = baileys
 const Browsers = baileys.Browsers || {
   windows: (name = 'Chrome') => ['Windows', name, '10.0.22631'],
   ubuntu: (name = 'Chrome') => ['Ubuntu', name, '22.04.4']
@@ -118,29 +118,47 @@ const PAIRING_TIMEOUT_MS = Number(process.env.PAIRING_TIMEOUT_MS || 240000)
 const MAX_RECONNECT_ATTEMPTS = Number(process.env.MAX_RECONNECT_ATTEMPTS || 5)
 
 // Cache versi WhatsApp Web di memori (TTL 6 jam) agar tidak fetch berulang kali saat startup/pairing
-let cachedWaVersion = null
+const FALLBACK_WA_VERSION = [2, 3000, 1056449320]
+let cachedWaVersion = FALLBACK_WA_VERSION
 let cachedWaVersionAt = 0
 let waVersionPromise = null
 const WA_VERSION_TTL_MS = 6 * 60 * 60 * 1000
 
 async function getCachedWaVersion() {
-  if (cachedWaVersion && Date.now() - cachedWaVersionAt < WA_VERSION_TTL_MS) {
+  if (cachedWaVersion && (Date.now() - cachedWaVersionAt < WA_VERSION_TTL_MS)) {
     return cachedWaVersion
   }
   if (waVersionPromise) return waVersionPromise
 
   waVersionPromise = (async () => {
     try {
-      const latest = await Promise.race([
-        fetchLatestBaileysVersion(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('waVersion timeout')), 3000))
+      // 1. Prioritaskan fetchLatestWaWebVersion (live revision dari web.whatsapp.com/sw.js)
+      const live = await Promise.race([
+        fetchLatestWaWebVersion().catch(() => null),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('fetchLatestWaWebVersion timeout')), 3500))
       ])
-      if (latest?.version) {
-        cachedWaVersion = latest.version
+      if (live?.version && Array.isArray(live.version) && live.version.length === 3) {
+        cachedWaVersion = live.version
         cachedWaVersionAt = Date.now()
+        console.log(`🌐 [WA Version] Menggunakan versi live WA Web: ${cachedWaVersion.join('.')}`)
+        return cachedWaVersion
       }
-    } catch { }
-    return cachedWaVersion
+
+      // 2. Fallback ke fetchLatestBaileysVersion (WhiskeySockets repo)
+      const baileysVer = await Promise.race([
+        fetchLatestBaileysVersion().catch(() => null),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('fetchLatestBaileysVersion timeout')), 2000))
+      ])
+      if (baileysVer?.version && Array.isArray(baileysVer.version) && baileysVer.version.length === 3) {
+        cachedWaVersion = baileysVer.version
+        cachedWaVersionAt = Date.now()
+        console.log(`🌐 [WA Version] Menggunakan versi Baileys repo: ${cachedWaVersion.join('.')}`)
+        return cachedWaVersion
+      }
+    } catch (err) {
+      console.warn(`⚠️ [WA Version] Lookup error (${err?.message || err}), menggunakan fallback: ${FALLBACK_WA_VERSION.join('.')}`)
+    }
+    return cachedWaVersion || FALLBACK_WA_VERSION
   })().finally(() => {
     waVersionPromise = null
   })
@@ -558,19 +576,39 @@ async function startSession(number, options = {}) {
         return
       }
 
-      // Saat pairing, WhatsApp sering memicu restartRequired (515) setelah kode dimasukkan.
-      // Jangan hapus sesi pada 515 — biarkan reconnect otomatis agar penautan selesai.
+      // Saat pairing, WhatsApp sering memicu disconnect (428, 408, 515, connectionClosed) saat bertukar kunci.
+      // JANGAN hapus sesi pada event disconnect tersebut — biarkan reconnect agar penautan selesai.
       if (session.pendingPairing) {
         console.log(`🔄 [Pairing] connection.update (${number}): statusCode=${statusCode || 'unknown'}, registered=${registered}`)
       }
-      if (loggedOut || (!registered && session.pendingPairing && !restartRequired)) {
-        const reason = loggedOut ? 'logged_out_from_device' : `pairing_failed_or_not_linked (code=${statusCode || 'unknown'})`
-        console.log(`🗑️ Hapus sesi ${number}: ${reason}`)
-        await removeSession(number, reason)
+
+      // 1. Jika pengguna benar-benar log out dari WhatsApp ponsel setelah terhubung (401)
+      if (loggedOut && registered) {
+        console.log(`🗑️ Hapus sesi ${number}: logged_out_from_device`)
+        await removeSession(number, 'logged_out_from_device')
         return
       }
 
-      // Sesi yang sudah terdaftar (atau restartRequired 515 saat pairing): coba reconnect
+      // 2. Saat sesi dalam tahap penautan (pendingPairing):
+      // WhatsApp server SANGAT SERING menutup soket (kode 428, 408, 515, restartRequired, dsb)
+      // saat ponsel memproses handshake pertukaran kunci companion_finish.
+      // JANGAN hapus sesi di sini! Biarkan soket segera reconnect agar penautan selesai.
+      // Sesi pendingPairing hanya akan dihapus jika timer session.pairingTimeout habis (240 detik).
+      if (session.pendingPairing) {
+        if (loggedOut) {
+          console.log(`🗑️ Hapus sesi pairing ${number}: loggedOut (401)`)
+          await removeSession(number, 'pairing_logged_out')
+          return
+        }
+        console.log(`🔄 [Pairing] Menjaga sesi ${number} tetap aktif untuk handshake companion (statusCode=${statusCode || 'unknown'}). Menjadwalkan reconnect...`)
+      } else if (!registered) {
+        // Sesi biasa (bukan pairing aktif) yang belum pernah tertaut dan socket terputus
+        console.log(`🗑️ Hapus sesi ${number}: unlinked_and_unregistered (code=${statusCode || 'unknown'})`)
+        await removeSession(number, `unlinked_and_unregistered (code=${statusCode || 'unknown'})`)
+        return
+      }
+
+      // Sesi yang sudah terdaftar ATAU sedang pending pairing: coba reconnect
       if (session.reconnecting) return
       session.reconnecting = true
       session.reconnectAttempts += 1
@@ -581,16 +619,25 @@ async function startSession(number, options = {}) {
         return
       }
 
-      const reconnectDelay = restartRequired
+      // Reconnect sangat cepat (500ms) jika restartRequired (515) atau saat pendingPairing,
+      // agar tidak kehilangan window pertukaran kunci dari WhatsApp HP.
+      const reconnectDelay = (restartRequired || session.pendingPairing)
         ? 500
         : 3000 + Math.floor(Math.random() * 4000)
+
       if (session.reconnectTimeout) clearTimeout(session.reconnectTimeout)
       session.reconnectTimeout = setTimeout(async () => {
         if (session.removed || session.manualDisconnect) return
         const keepPendingPairing = session.pendingPairing
+        const preservedPairingTimeout = session.pairingTimeout
+        session.pairingTimeout = null
+
         sessions.delete(number)
         try {
-          await startSession(number, { pendingPairing: keepPendingPairing })
+          const newSession = await startSession(number, { pendingPairing: keepPendingPairing })
+          if (keepPendingPairing && preservedPairingTimeout && !newSession.pairingTimeout) {
+            newSession.pairingTimeout = preservedPairingTimeout
+          }
         } catch (err) {
           console.error(`❌ Reconnect error (${number}):`, err)
         }
@@ -630,22 +677,22 @@ async function requestPairing(phoneNumber) {
 
       session = await startSession(number, { pendingPairing: true })
 
-      // Tunggu socket siap (WebSocket terbuka) sebelum meminta pairing code.
-      for (let i = 0; i < 20; i++) {
+      // Tunggu socket siap (WebSocket terbuka) sebelum meminta pairing code (polling 100ms agar responsif).
+      for (let i = 0; i < 30; i++) {
         if (session.removed || sessions.get(number) !== session) {
           throw new Error('Koneksi pairing ditutup sebelum kode dibuat. Silakan coba lagi.')
         }
         if (session.conn?.ws?.isOpen) break
-        await new Promise(resolve => setTimeout(resolve, 200))
+        await new Promise(resolve => setTimeout(resolve, 100))
       }
-      await new Promise(resolve => setTimeout(resolve, 400))
+      await new Promise(resolve => setTimeout(resolve, 200))
       if (session.removed || sessions.get(number) !== session) {
         throw new Error('Koneksi pairing ditutup sebelum kode dibuat. Silakan coba lagi.')
       }
 
       const code = await Promise.race([
         session.conn.requestPairingCode(number),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Permintaan pairing code ke WhatsApp timeout (15s). Silakan coba lagi.')), 15000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Permintaan pairing code ke WhatsApp timeout (25s). Silakan coba lagi.')), 25000))
       ])
       if (!code) throw new Error('WhatsApp belum memberikan pairing code. Coba generate ulang beberapa detik lagi.')
 
@@ -720,6 +767,8 @@ async function connectExistingSessions() {
     : `ℹ️ Memuat ${entries.length} sesi WhatsApp...`)
 }
 
+// Pre-warm versi WhatsApp Web di background agar pairing request pertama langsung instan
+getCachedWaVersion().catch(() => {})
 connectExistingSessions().catch(err => console.error('❌ Startup error:', err))
 
 module.exports = { requestPairing, startSession, listSessions, connectExistingSessions, removeSession, disconnectSession, reconnectSession }

@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
       data: {
         pairingCode: result.code,
         phoneNumber: result.number,
-        expiresInSeconds: 120,
+        expiresInSeconds: 240,
       },
     });
   } catch (error: any) {
