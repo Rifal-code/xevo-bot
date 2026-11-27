@@ -514,6 +514,9 @@ async function startSession(number, options = {}) {
 
       // Saat pairing, WhatsApp sering memicu restartRequired (515) setelah kode dimasukkan.
       // Jangan hapus sesi pada 515 — biarkan reconnect otomatis agar penautan selesai.
+      if (session.pendingPairing) {
+        console.log(`🔄 [Pairing] connection.update (${number}): statusCode=${statusCode || 'unknown'}, registered=${registered}`)
+      }
       if (loggedOut || (!registered && session.pendingPairing && !restartRequired)) {
         const reason = loggedOut ? 'logged_out_from_device' : `pairing_failed_or_not_linked (code=${statusCode || 'unknown'})`
         console.log(`🗑️ Hapus sesi ${number}: ${reason}`)
@@ -559,11 +562,25 @@ async function requestPairing(phoneNumber) {
   const job = (async () => {
     let session
     try {
-      session = await startSession(number, { pendingPairing: true })
-
-      if (session.state?.creds?.registered) {
+      const existing = sessions.get(number)
+      if (existing && (existing.connected || existing.state?.creds?.registered)) {
         throw new Error('Nomor ini sudah tertaut. Logout/hapus session lama terlebih dahulu jika ingin menautkan ulang.')
       }
+
+      // Bersihkan sisa sesi/folder auth yang belum terdaftar agar setiap request pairing selalu fresh
+      if (existing || fs.existsSync(getSessionPath(number))) {
+        let alreadyRegistered = false
+        try {
+          const creds = JSON.parse(await fs.promises.readFile(path.join(getSessionPath(number), 'creds.json'), 'utf8'))
+          alreadyRegistered = creds?.registered === true
+        } catch { }
+        if (alreadyRegistered) {
+          throw new Error('Nomor ini sudah tertaut. Logout/hapus session lama terlebih dahulu jika ingin menautkan ulang.')
+        }
+        await removeSession(number, 'fresh_pairing_request')
+      }
+
+      session = await startSession(number, { pendingPairing: true })
 
       // Jika user tidak menyelesaikan pairing, hapus sesi otomatis.
       if (session.pairingTimeout) clearTimeout(session.pairingTimeout)
