@@ -52,11 +52,25 @@ function isCreator(m) {
   return getNumber(m?.sender) === String(config.ownerNumber || '').replace(/\D/g, '')
 }
 
+function unwrapMessageContent(rawMsg) {
+  let msg = rawMsg || {}
+  for (let i = 0; i < 5; i++) {
+    if (msg.ephemeralMessage?.message) msg = msg.ephemeralMessage.message
+    else if (msg.viewOnceMessage?.message) msg = msg.viewOnceMessage.message
+    else if (msg.viewOnceMessageV2?.message) msg = msg.viewOnceMessageV2.message
+    else if (msg.viewOnceMessageV2Extension?.message) msg = msg.viewOnceMessageV2Extension.message
+    else if (msg.documentWithCaptionMessage?.message) msg = msg.documentWithCaptionMessage.message
+    else if (msg.editedMessage?.message) msg = msg.editedMessage.message
+    else break
+  }
+  return msg
+}
+
 function extractCommandFromMessage(m) {
   let body = ''
   let isButtonResponse = false
   try {
-    const message = m?.message || {}
+    const message = unwrapMessageContent(m?.message)
     if (message.conversation) body = message.conversation
     else if (message.extendedTextMessage?.text) body = message.extendedTextMessage.text
     else if (message.imageMessage?.caption) body = message.imageMessage.caption
@@ -75,6 +89,8 @@ function extractCommandFromMessage(m) {
     } else if (message.templateButtonReplyMessage) {
       body = message.templateButtonReplyMessage.selectedId || ''
       isButtonResponse = true
+    } else if (m?.text) {
+      body = String(m.text)
     }
   } catch (e) {
     console.error('Error parsing message:', e)
@@ -419,57 +435,18 @@ module.exports = async (conn, m) => {
         ].join('\n')
 
         const menuImage = path.join(__dirname, 'src', 'img', 'menu.jpeg')
-        let sent = false
-
-        // Menu legacy buttons: memakai foto sebagai jpegThumbnail dan tombol ALL MENU.
-        // Format ini mengikuti struktur buttonsMessage yang digunakan oleh fork Nachles.
         try {
           if (fs.existsSync(menuImage)) {
-            const thumb = fs.readFileSync(menuImage)
-            await conn.relayMessage(
-              m.chat,
-              {
-                buttonsMessage: {
-                  locationMessage: {
-                    degreesLatitude: 0,
-                    degreesLongitude: 0,
-                    name: 'Xevo Bot',
-                    address: 'Nachles',
-                    jpegThumbnail: thumb
-                  },
-                  contentText: menuText,
-                  footerText: 'Xevo Bot • Nachles',
-                  buttons: [
-                    {
-                      buttonId: 'allmenu',
-                      buttonText: { displayText: '📋 ALL MENU' },
-                      type: 1
-                    }
-                  ],
-                  headerType: 6
-                }
-              },
-              { messageId: `${Date.now()}.${Math.random().toString(36).slice(2)}` }
-            )
+            await conn.sendMessage(m.chat, {
+              image: fs.readFileSync(menuImage),
+              caption: menuText
+            }, { quoted: m })
           } else {
-            await reply(menuText + '\n\n📋 Ketik *.allmenu* untuk melihat semua menu.')
+            await reply(menuText)
           }
         } catch (e) {
-          console.error('❌ buttons .menu gagal:', e?.stack || e)
-          // Fallback supaya .menu tetap membalas jika fork menolak buttonsMessage.
-          try {
-            if (fs.existsSync(menuImage)) {
-              await conn.sendMessage(m.chat, {
-                image: fs.readFileSync(menuImage),
-                caption: menuText + '\n\n📋 Ketik *.allmenu* untuk melihat semua menu.'
-              }, { quoted: m })
-            } else {
-              await reply(menuText + '\n\n📋 Ketik *.allmenu* untuk melihat semua menu.')
-            }
-          } catch (fallbackError) {
-            console.error('❌ fallback .menu gagal:', fallbackError?.stack || fallbackError)
-            await reply(menuText + '\n\n📋 Ketik *.allmenu* untuk melihat semua menu.')
-          }
+          console.error('❌ .menu gagal kirim gambar:', e?.stack || e)
+          await reply(menuText)
         }
         return
       }
