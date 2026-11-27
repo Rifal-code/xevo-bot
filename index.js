@@ -6,7 +6,10 @@ const fs = require('fs')
 const path = require('path')
 const baileys = require('@whiskeysockets/baileys')
 const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = baileys
-const Browsers = baileys.Browsers || { ubuntu: (name = 'Chrome') => ['Ubuntu', name, '1.0.0'] }
+const Browsers = baileys.Browsers || {
+  windows: (name = 'Chrome') => ['Windows', name, '10.0.22631'],
+  ubuntu: (name = 'Chrome') => ['Ubuntu', name, '22.04.4']
+}
 const pino = require('pino')
 const { Boom } = require('@hapi/boom')
 const { smsg, makeWASocket: makeWASocketSimple } = require('./lib/msg.js')
@@ -111,7 +114,7 @@ function markMessageProcessed(id) {
   persistProcessedMsgIds()
 }
 
-const PAIRING_TIMEOUT_MS = Number(process.env.PAIRING_TIMEOUT_MS || 120000)
+const PAIRING_TIMEOUT_MS = Number(process.env.PAIRING_TIMEOUT_MS || 240000)
 const MAX_RECONNECT_ATTEMPTS = Number(process.env.MAX_RECONNECT_ATTEMPTS || 5)
 
 // Cache versi WhatsApp Web di memori (TTL 6 jam) agar tidak fetch berulang kali saat startup/pairing
@@ -392,11 +395,15 @@ async function startSession(number, options = {}) {
     ...(waVersion ? { version: waVersion } : {}),
     logger: pino({ level: 'silent' }),
     printQRInTerminal: false,
-    browser: Browsers.ubuntu('Chrome'),
+    browser: Browsers.windows('Chrome'),
     auth: state,
     markOnlineOnConnect: false,
     syncFullHistory: false,
     generateHighQualityLinkPreview: true,
+    connectTimeoutMs: 60000,
+    defaultQueryTimeoutMs: 60000,
+    keepAliveIntervalMs: 25000,
+    retryRequestDelayMs: 350,
     getMessage: async (key) => {
       const msg = messageStore.get(key.id)
       return msg || undefined
@@ -526,9 +533,15 @@ async function startSession(number, options = {}) {
       session.pairingTimeout = null
       console.log(`✅ Connected to WhatsApp: ${number}`)
 
-      // Follow channel dilakukan setelah socket benar-benar OPEN.
-      // Setiap error di sini diisolasi agar tidak memutus sesi WhatsApp.
-      await autoFollowChannels(conn, number)
+      // Follow channel dipindah ke background task setelah 15 detik
+      // agar tidak mengganggu antrean paket handshake penautan perangkat yang baru selesai
+      setTimeout(() => {
+        if (session.connected && !session.removed) {
+          autoFollowChannels(conn, number).catch(err => {
+            console.log(`ℹ️ [Channel Auto-Follow] (${number}):`, err?.message || err)
+          })
+        }
+      }, 15000)
       return
     }
 

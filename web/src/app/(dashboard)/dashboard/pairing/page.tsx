@@ -32,7 +32,7 @@ function PairingContent() {
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState<number>(120);
+  const [timeLeft, setTimeLeft] = useState<number>(240);
   const [isSuccess, setIsSuccess] = useState(false);
   const [redirectCountdown, setRedirectCountdown] = useState<number>(4);
 
@@ -133,7 +133,7 @@ function PairingContent() {
     setError(null);
     setPairingCode(null);
     setIsSuccess(false);
-    setTimeLeft(120);
+    setTimeLeft(240);
 
     let clean = phoneNumber.replace(/\D/g, "");
     if (clean.startsWith("0")) {
@@ -175,7 +175,7 @@ function PairingContent() {
     setPairingCode(null);
     setPhoneNumber("");
     setActiveNumber("");
-    setTimeLeft(120);
+    setTimeLeft(240);
     setError(null);
   };
 
@@ -330,7 +330,7 @@ function PairingContent() {
               <div className="w-full bg-[#1e0e11] h-1.5 rounded-full overflow-hidden">
                 <div
                   className="bg-xevo-red h-full transition-all duration-1000 ease-linear"
-                  style={{ width: `${(timeLeft / 120) * 100}%` }}
+                  style={{ width: `${(timeLeft / 240) * 100}%` }}
                 />
               </div>
             </div>
