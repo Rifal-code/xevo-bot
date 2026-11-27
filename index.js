@@ -462,6 +462,7 @@ async function startSession(number, options = {}) {
   })
 
   conn.ev.on('creds.update', async () => {
+    if (session.removed) return
     try {
       await saveCreds()
 
