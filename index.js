@@ -820,7 +820,7 @@ async function requestPairing(phoneNumber) {
       }
 
       // Tunggu socket siap (WebSocket terbuka) sebelum meminta pairing code (polling 100ms agar responsif).
-      // Coba hingga 60x (6s) untuk lingkungan hosting yang lambat, dengan satu retry otomatis
+      // Coba hingga 80x (8s) untuk lingkungan hosting yang lambat, dengan satu retry otomatis
       // bila socket putus sebelum siap.
       let attempt = 0
       while (true) {
@@ -828,7 +828,7 @@ async function requestPairing(phoneNumber) {
         session = await startSession(number, { pendingPairing: true })
 
         let socketReady = false
-        for (let i = 0; i < 60; i++) {
+        for (let i = 0; i < 80; i++) {
           if (session.removed || sessions.get(number) !== session) break
           if (session.conn?.ws?.isOpen) { socketReady = true; break }
           await new Promise(resolve => setTimeout(resolve, 100))
@@ -841,9 +841,10 @@ async function requestPairing(phoneNumber) {
         console.log(`⚠️ [Pairing] Socket belum siap (percobaan ${attempt}/2) untuk ${number}. Mencoba ulang...`)
         await removeSession(number, 'pairing_socket_not_ready_retry')
         if (attempt >= 2) {
+          console.log(`❌ [Pairing] Gagal membuat kode untuk ${number} setelah ${attempt} percobaan. Socket putus sebelum siap.`)
           throw new Error('Koneksi pairing ditutup sebelum kode dibuat. Silakan coba lagi.')
         }
-        await new Promise(resolve => setTimeout(resolve, 2000))
+        await new Promise(resolve => setTimeout(resolve, 3000))
       }
 
       const code = await Promise.race([

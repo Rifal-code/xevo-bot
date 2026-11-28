@@ -134,7 +134,7 @@ export class EngineClient {
         method: "POST",
         body: JSON.stringify({ number: phoneNumber }),
       },
-      30000
+      40000
     );
 
     return { code: res.code, number: res.number };
