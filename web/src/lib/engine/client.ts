@@ -140,6 +140,25 @@ export class EngineClient {
     return { code: res.code, number: res.number };
   }
 
+  async getPairingStatus(phoneNumber: string): Promise<{
+    status: "idle" | "waiting" | "processing" | "connected" | "failed";
+    message: string;
+    reason?: string;
+  }> {
+    const res = await this.request<{
+      success: boolean;
+      status: "idle" | "waiting" | "processing" | "connected" | "failed";
+      message?: string;
+      reason?: string;
+    }>(`/api/pairing/status?number=${encodeURIComponent(phoneNumber)}`, {}, 4000);
+
+    return {
+      status: res.status || "idle",
+      message: res.message || "",
+      reason: res.reason,
+    };
+  }
+
   async deleteSession(sessionRef: string): Promise<{ success: boolean; message: string }> {
     return this.request<{ success: boolean; message: string }>(
       `/api/sessions/${sessionRef}`,

@@ -25,7 +25,7 @@ process.on('unhandledRejection', (reason) => {
   console.error('⚠️ [Engine unhandledRejection]:', reason?.message || reason)
 })
 
-const { requestPairing, listSessions, removeSession, disconnectSession, reconnectSession } = require('./index.js')
+const { requestPairing, getPairingStatus, listSessions, removeSession, disconnectSession, reconnectSession } = require('./index.js')
 
 const PORT = Number(process.env.PORT) || 5004
 const PUBLIC = path.join(__dirname, 'public')
@@ -377,6 +377,18 @@ const server = http.createServer(async (req, res) => {
       console.error('❌ Pairing API:', err.message || err)
       return send(res, 400, JSON.stringify({ success: false, message: err.message || 'Pairing gagal.' }))
     }
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/pairing/status') {
+    if (!isAuthorized(req)) {
+      return send(res, 401, JSON.stringify({ success: false, message: 'Unauthorized.' }))
+    }
+    const number = url.searchParams.get('number')
+    if (!number) {
+      return send(res, 400, JSON.stringify({ success: false, message: 'Nomor WhatsApp wajib diisi.' }))
+    }
+    const statusData = getPairingStatus(number)
+    return send(res, 200, JSON.stringify({ success: true, ...statusData }))
   }
 
   let file = url.pathname === '/' ? 'index.html' : url.pathname.replace(/^\/+/, '')

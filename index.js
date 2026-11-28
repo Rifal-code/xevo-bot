@@ -61,6 +61,7 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
 const SERVER_BOOT_TIME = Math.floor(Date.now() / 1000)
 const sessions = new Map()
 const pairingLocks = new Map()
+const pairingStatusMap = new Map()
 const messageStore = new Map() // Cache pesan untuk menangani retry/pre-key WhatsApp E2EE
 
 // Cache & persist ID pesan untuk mencegah replay / duplikasi saat restart atau redeploy
@@ -279,6 +280,52 @@ function getSessionPath(number) {
   return path.join(AUTH_ROOT, number)
 }
 
+function setPairingStatus(number, status, message = '', reason = '') {
+  number = cleanNumber(number)
+  pairingStatusMap.set(number, {
+    status, // 'waiting' | 'processing' | 'connected' | 'failed'
+    message,
+    reason,
+    updatedAt: Date.now()
+  })
+
+  // Bersihkan record pairing lama setelah 10 menit
+  if (pairingStatusMap.size > 100) {
+    const now = Date.now()
+    for (const [key, val] of pairingStatusMap.entries()) {
+      if (now - val.updatedAt > 600000) pairingStatusMap.delete(key)
+    }
+  }
+}
+
+function getPairingStatus(phoneNumber) {
+  const number = cleanNumber(phoneNumber)
+  const session = sessions.get(number)
+
+  if (session?.connected) {
+    return { status: 'connected', message: 'WhatsApp berhasil terhubung!' }
+  }
+
+  // Jika kode sudah dimasukkan di HP (handshake bertukar kunci atau transisi reconnect login)
+  if (session?.pairedAt || (session?.pendingPairing && session?.state?.creds?.registered)) {
+    return { status: 'processing', message: 'Sedang memproses masuk ke WhatsApp...' }
+  }
+
+  const record = pairingStatusMap.get(number)
+  if (record) {
+    if (record.status === 'waiting' && !session) {
+      return { status: 'failed', message: 'Koneksi pairing terputus sebelum kode dimasukkan. Silakan coba lagi.' }
+    }
+    return { status: record.status, message: record.message, reason: record.reason }
+  }
+
+  if (session?.pendingPairing) {
+    return { status: 'waiting', message: 'Menunggu input kode di WhatsApp HP Anda...' }
+  }
+
+  return { status: 'idle', message: 'Tidak ada sesi pairing aktif' }
+}
+
 function sessionInfo(number) {
   const item = sessions.get(number)
   return {
@@ -358,6 +405,18 @@ async function removeSession(number, reason = 'unknown') {
   number = cleanNumber(number)
   const session = sessions.get(number)
   const authPath = getSessionPath(number)
+
+  const currentPairing = pairingStatusMap.get(number)
+  if (currentPairing && currentPairing.status !== 'connected') {
+    setPairingStatus(
+      number,
+      'failed',
+      reason.includes('timeout')
+        ? 'Waktu memasukkan kode pairing telah habis.'
+        : 'Gagal menautkan perangkat. Silakan buat kode baru.',
+      reason
+    )
+  }
 
   if (session) {
     session.removed = true
@@ -441,6 +500,7 @@ async function startSession(number, options = {}) {
     conn.ws.on('CB:iq,,pair-success', async () => {
       console.log(`🎉 [Pairing WS] pair-success received (${number})! Handshake penautan berhasil.`)
       session.pairedAt = Date.now()
+      setPairingStatus(number, 'processing', 'Kode pairing diterima! Sedang memproses masuk ke WhatsApp...')
       if (session.state?.creds) {
         session.state.creds.registered = true
         try { await session.saveCreds() } catch {}
@@ -583,6 +643,7 @@ async function startSession(number, options = {}) {
     if (isNewLogin) {
       console.log(`🎉 [Pairing Event] isNewLogin triggered (${number})`)
       session.pairedAt = Date.now()
+      setPairingStatus(number, 'processing', 'Kode pairing diterima! Sedang memproses masuk ke WhatsApp...')
       if (session.state?.creds) {
         session.state.creds.registered = true
         try { await session.saveCreds() } catch {}
@@ -604,6 +665,7 @@ async function startSession(number, options = {}) {
 
     if (connection === 'open') {
       session.connected = true
+      setPairingStatus(number, 'connected', 'WhatsApp berhasil terhubung!')
       session.connectedAt = Math.floor(Date.now() / 1000)
       session.reconnecting = false
       session.reconnectAttempts = 0
@@ -787,8 +849,11 @@ async function requestPairing(phoneNumber) {
         }
       }, PAIRING_TIMEOUT_MS)
 
+      setPairingStatus(number, 'waiting', 'Menunggu input kode di WhatsApp HP Anda...')
+
       return { code, number }
     } catch (err) {
+      setPairingStatus(number, 'failed', err?.message || 'Gagal memproses kode pairing.')
       // Jangan tinggalkan folder auth atau kartu session ketika generate code gagal.
       await removeSession(number, 'pairing_request_failed')
       throw err
@@ -853,4 +918,4 @@ async function connectExistingSessions() {
 getCachedWaVersion().catch(() => {})
 connectExistingSessions().catch(err => console.error('❌ Startup error:', err))
 
-module.exports = { requestPairing, startSession, listSessions, connectExistingSessions, removeSession, disconnectSession, reconnectSession }
+module.exports = { requestPairing, getPairingStatus, startSession, listSessions, connectExistingSessions, removeSession, disconnectSession, reconnectSession }

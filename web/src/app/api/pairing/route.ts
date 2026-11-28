@@ -129,3 +129,69 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export async function GET(req: NextRequest) {
+  try {
+    const rawNumber = req.nextUrl.searchParams.get("number");
+    if (!rawNumber) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Parameter 'number' wajib disertakan.",
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    let clean = rawNumber.replace(/\D/g, "");
+    if (clean.startsWith("0")) {
+      clean = "62" + clean.slice(1);
+    }
+
+    const statusData = await engineClient.getPairingStatus(clean);
+
+    // Jika socket sudah terverifikasi tersambung, sinkronkan ke database Supabase
+    if (statusData.status === "connected") {
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (user) {
+          const phoneHash = crypto.createHash("sha256").update(clean).digest("hex");
+          const adminDb = createAdminClient();
+          await adminDb
+            .from("whatsapp_sessions")
+            .update({
+              status: "connected",
+              connected_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("phone_lookup_hash", phoneHash);
+        }
+      } catch (dbErr) {
+        console.error("❌ Gagal sinkron status pairing connected ke database:", dbErr);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: statusData,
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: "STATUS_CHECK_FAILED",
+          message: error?.message || "Gagal memeriksa status pairing.",
+        },
+      },
+      { status: 500 }
+    );
+  }
+}

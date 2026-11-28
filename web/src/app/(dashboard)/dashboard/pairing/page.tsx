@@ -19,7 +19,12 @@ import {
   ArrowRight,
   PlusCircle,
   Zap,
+  Loader2,
+  XCircle,
+  RotateCcw,
 } from "lucide-react";
+
+type PairingStage = "idle" | "waiting" | "processing" | "connected" | "failed";
 
 function PairingContent() {
   const router = useRouter();
@@ -33,7 +38,7 @@ function PairingContent() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(240);
-  const [isSuccess, setIsSuccess] = useState(false);
+  const [pairingStage, setPairingStage] = useState<PairingStage>("idle");
   const [redirectCountdown, setRedirectCountdown] = useState<number>(4);
 
   const redirectTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -45,71 +50,68 @@ function PairingContent() {
     }
   }, [searchParams]);
 
-  // Countdown timer for pairing code validity
+  // Countdown timer masa berlaku kode — hanya aktif selama status "waiting"
   useEffect(() => {
-    if (!pairingCode || timeLeft <= 0 || isSuccess) return;
+    if (pairingStage !== "waiting" || timeLeft <= 0) return;
     const interval = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
+          setPairingStage("failed");
+          setError("Waktu memasukkan kode pairing telah habis (kedaluwarsa). Silakan buat kode baru.");
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [pairingCode, timeLeft, isSuccess]);
+  }, [pairingStage, timeLeft]);
 
-  // Polling deteksi koneksi real-time saat kode pairing aktif
+  // Polling deteksi status pairing real-time (waiting -> processing -> connected/failed)
   useEffect(() => {
-    if (!pairingCode || isSuccess || timeLeft <= 0) return;
+    if (pairingStage !== "waiting" && pairingStage !== "processing") return;
+    if (!activeNumber) return;
 
-    const cleanTarget = activeNumber.replace(/\D/g, "");
-    const normalizedTarget = cleanTarget.startsWith("0") ? "62" + cleanTarget.slice(1) : cleanTarget;
+    let isSubscribed = true;
 
     const pollInterval = setInterval(async () => {
       try {
-        const res = await fetch("/api/sessions");
+        const res = await fetch(`/api/pairing?number=${encodeURIComponent(activeNumber)}`);
         const json = await res.json();
-        if (json.success && Array.isArray(json.data?.sessions)) {
-          // Cari sesi nomor yang sedang dipairing yang sudah connected
-          const matched = json.data.sessions.find((s: any) => {
-            const sRef = String(s.engineSessionRef || "").replace(/\D/g, "");
-            const sPhone = String(s.phoneNumber || "").replace(/\D/g, "");
-            const matchesNumber =
-              !normalizedTarget ||
-              sRef === normalizedTarget ||
-              sPhone === normalizedTarget ||
-              (sRef.length >= 8 && normalizedTarget.endsWith(sRef)) ||
-              (normalizedTarget.length >= 8 && sRef.endsWith(normalizedTarget));
 
-            return matchesNumber && s.connected === true;
-          });
+        if (!isSubscribed) return;
 
-          if (matched) {
-            // BERHASIL TERHUBUNG:
-            // 1. Hilangkan kode pairing
+        if (json.success && json.data) {
+          const { status, message } = json.data;
+
+          if (status === "processing") {
+            setPairingStage("processing");
+          } else if (status === "connected") {
+            setPairingStage("connected");
             setPairingCode(null);
-            // 2. Set status success
-            setIsSuccess(true);
-            // 3. Tampilkan toast konfirmasi
-            toast.success(
-              `WhatsApp ${matched.phoneNumberMasked || activeNumber} berhasil terhubung!`
-            );
+            toast.success(`WhatsApp +${activeNumber} berhasil terhubung!`);
+            clearInterval(pollInterval);
+          } else if (status === "failed") {
+            setPairingStage("failed");
+            setPairingCode(null);
+            setError(message || "Gagal menautkan perangkat. Ponsel membatalkan penautan atau koneksi terputus.");
             clearInterval(pollInterval);
           }
         }
       } catch {
         // Silent poll error
       }
-    }, 2000);
+    }, 1500);
 
-    return () => clearInterval(pollInterval);
-  }, [pairingCode, isSuccess, timeLeft, activeNumber, toast]);
+    return () => {
+      isSubscribed = false;
+      clearInterval(pollInterval);
+    };
+  }, [pairingStage, activeNumber, toast]);
 
   // Auto redirect countdown saat berhasil terhubung
   useEffect(() => {
-    if (!isSuccess) return;
+    if (pairingStage !== "connected") return;
 
     redirectTimerRef.current = setInterval(() => {
       setRedirectCountdown((prev) => {
@@ -125,14 +127,14 @@ function PairingContent() {
     return () => {
       if (redirectTimerRef.current) clearInterval(redirectTimerRef.current);
     };
-  }, [isSuccess, router]);
+  }, [pairingStage, router]);
 
   const handleGenerateCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     setPairingCode(null);
-    setIsSuccess(false);
+    setPairingStage("idle");
     setTimeLeft(240);
 
     let clean = phoneNumber.replace(/\D/g, "");
@@ -157,8 +159,10 @@ function PairingContent() {
       if (typeof json.data?.expiresInSeconds === "number") {
         setTimeLeft(json.data.expiresInSeconds);
       }
+      setPairingStage("waiting");
     } catch (err: any) {
       setError(err?.message || "Terjadi kesalahan saat memproses pairing.");
+      setPairingStage("failed");
     } finally {
       setLoading(false);
     }
@@ -174,13 +178,15 @@ function PairingContent() {
 
   const handleReset = () => {
     if (redirectTimerRef.current) clearInterval(redirectTimerRef.current);
-    setIsSuccess(false);
+    setPairingStage("idle");
     setPairingCode(null);
     setPhoneNumber("");
     setActiveNumber("");
     setTimeLeft(240);
     setError(null);
   };
+
+  const isWorking = pairingStage === "waiting" || pairingStage === "processing";
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 sm:space-y-8 w-full">
@@ -213,21 +219,21 @@ function PairingContent() {
                 placeholder="628xxxxxxxxxx"
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
-                disabled={loading || (!!pairingCode && timeLeft > 0 && !isSuccess)}
+                disabled={loading || isWorking}
                 required
                 className="text-base font-bold flex-1"
               />
               <Button
                 type="submit"
                 size="md"
-                disabled={loading || (!!pairingCode && timeLeft > 0 && !isSuccess)}
+                disabled={loading || isWorking}
                 className="w-full sm:w-auto px-6 whitespace-nowrap shrink-0"
               >
                 {loading ? "MEMPROSES..." : "GENERATE CODE →"}
               </Button>
             </div>
 
-            {error && (
+            {error && pairingStage !== "failed" && (
               <div className="p-3 bg-red-950/60 border border-red-800 rounded-lg text-xs font-mono text-red-200 flex items-start sm:items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5 sm:mt-0" />
                 <span>{error}</span>
@@ -235,8 +241,8 @@ function PairingContent() {
             )}
           </form>
 
-          {/* SUCCESS NOTIFICATION ALERT — TAMPIL KETIKA SUDAH TERHUBUNG & KODE HILANG */}
-          {isSuccess && (
+          {/* 1. SUCCESS NOTIFICATION ALERT — KETIKA BERHASIL TERHUBUNG */}
+          {pairingStage === "connected" && (
             <div className="mt-6 p-5 sm:p-7 bg-[#061a10] border-2 border-emerald-500 rounded-2xl text-center space-y-4 shadow-xevo-brutal animate-in zoom-in-95 duration-200">
               <div className="w-14 h-14 rounded-2xl bg-emerald-950 border-2 border-emerald-500 flex items-center justify-center mx-auto text-emerald-400 shadow-xevo-brutal">
                 <CheckCircle2 className="w-8 h-8 animate-pulse" />
@@ -287,15 +293,68 @@ function PairingContent() {
             </div>
           )}
 
-          {/* PAIRING CODE DISPLAY — OTOMATIS HILANG JIKA isSuccess === true */}
-          {pairingCode && !isSuccess && (
-            <div className="mt-6 sm:mt-8 p-4 sm:p-6 bg-[#0c080a] border-2 border-xevo-red rounded-xl shadow-xevo-brutal space-y-4 text-center">
-              <span className="text-[10px] font-mono font-bold text-xevo-muted tracking-widest uppercase">
-                PAIRING CODE ANDA
-              </span>
+          {/* 2. FAILED NOTIFICATION ALERT — KETIKA GAGAL MENAUTKAN */}
+          {pairingStage === "failed" && (
+            <div className="mt-6 p-5 sm:p-7 bg-[#1c080b] border-2 border-red-600 rounded-2xl text-center space-y-4 shadow-xevo-brutal animate-in zoom-in-95 duration-200">
+              <div className="w-14 h-14 rounded-2xl bg-red-950 border-2 border-red-600 flex items-center justify-center mx-auto text-red-400 shadow-xevo-brutal">
+                <XCircle className="w-8 h-8 text-red-500" />
+              </div>
+
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-950/80 border border-red-700 text-[11px] font-mono font-bold text-red-300 uppercase tracking-wider">
+                  <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+                  <span>Penautan Gagal</span>
+                </div>
+                <h3 className="text-lg sm:text-xl font-black text-white tracking-tight">
+                  GAGAL MENAUTKAN PERANGKAT
+                </h3>
+                <p className="text-xs sm:text-sm font-mono text-red-200/90 max-w-md mx-auto leading-relaxed">
+                  {error || "WhatsApp gagal menyelesaikan penautan, koneksi ditutup, atau kode kedaluwarsa. Silakan generate kode baru untuk mencoba lagi."}
+                </p>
+              </div>
+
+              <div className="pt-2 flex items-center justify-center">
+                <Button
+                  type="button"
+                  size="md"
+                  onClick={handleReset}
+                  className="bg-red-600 hover:bg-red-500 text-white font-bold px-6 shadow-xevo-btn"
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  <span>GENERATE KODE BARU</span>
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* 3. PAIRING CODE DISPLAY — SAAT WAITING / SEDANG MEMPROSES MASUK */}
+          {pairingCode && isWorking && (
+            <div
+              className={`mt-6 sm:mt-8 p-4 sm:p-6 rounded-xl shadow-xevo-brutal space-y-4 text-center border-2 transition-all duration-300 ${
+                pairingStage === "processing"
+                  ? "bg-[#181105] border-amber-500 shadow-amber-950/30"
+                  : "bg-[#0c080a] border-xevo-red"
+              }`}
+            >
+              {pairingStage === "processing" ? (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-950/80 border border-amber-500/70 text-[11px] font-mono font-bold text-amber-300 uppercase tracking-wider animate-pulse">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                  <span>KODE DITERIMA DI WHATSAPP</span>
+                </div>
+              ) : (
+                <span className="text-[10px] font-mono font-bold text-xevo-muted tracking-widest uppercase">
+                  PAIRING CODE ANDA
+                </span>
+              )}
 
               <div className="flex items-center justify-center gap-2 sm:gap-4 flex-wrap">
-                <span className="text-2xl xs:text-3xl sm:text-5xl font-mono font-black tracking-wider sm:tracking-widest text-white selection:bg-xevo-red select-all break-all">
+                <span
+                  className={`text-2xl xs:text-3xl sm:text-5xl font-mono font-black tracking-wider sm:tracking-widest select-all break-all transition-colors ${
+                    pairingStage === "processing"
+                      ? "text-amber-200 selection:bg-amber-600"
+                      : "text-white selection:bg-xevo-red"
+                  }`}
+                >
                   {pairingCode}
                 </span>
                 <button
@@ -313,29 +372,56 @@ function PairingContent() {
                 </button>
               </div>
 
-              {/* Status Menunggu */}
-              <div className="flex items-center justify-center gap-2 text-xs font-mono text-zinc-300">
-                <span className="w-2 h-2 rounded-full bg-xevo-red animate-ping shrink-0" />
-                <span>Menunggu input kode di WhatsApp HP Anda...</span>
-              </div>
+              {/* Status Kondisi */}
+              {pairingStage === "processing" ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-center gap-2 text-xs sm:text-sm font-mono font-bold text-amber-300">
+                    <Loader2 className="w-4 h-4 animate-spin text-amber-400 shrink-0" />
+                    <span>Sedang memproses masuk ke WhatsApp...</span>
+                  </div>
+                  <p className="text-[11px] sm:text-xs font-mono text-zinc-400 max-w-md mx-auto leading-relaxed">
+                    Kode pairing telah diterima ponsel. WhatsApp sedang memverifikasi login companion. Harap tunggu sebentar, jangan tutup halaman ini.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2 text-xs font-mono text-zinc-300">
+                  <span className="w-2 h-2 rounded-full bg-xevo-red animate-ping shrink-0" />
+                  <span>Menunggu input kode di WhatsApp HP Anda...</span>
+                </div>
+              )}
 
-              {/* Expiry Timer */}
-              <div className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs font-mono text-xevo-yellow">
-                <Clock className="w-4 h-4 shrink-0" />
-                <span className="text-[11px] sm:text-xs">
-                  {timeLeft > 0
-                    ? `Berlaku selama ${timeLeft} detik`
-                    : "Kode telah kedaluwarsa. Silakan generate ulang."}
-                </span>
-              </div>
+              {/* Kondisi Waktu / Timer */}
+              {pairingStage === "processing" ? (
+                <div className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs font-mono text-amber-400/90">
+                  <Clock className="w-4 h-4 shrink-0 animate-spin text-amber-400" />
+                  <span className="text-[11px] sm:text-xs">
+                    Memverifikasi handshake login (biasanya butuh 5-10 detik)...
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs font-mono text-xevo-yellow">
+                  <Clock className="w-4 h-4 shrink-0" />
+                  <span className="text-[11px] sm:text-xs">
+                    {timeLeft > 0
+                      ? `Berlaku selama ${timeLeft} detik`
+                      : "Kode telah kedaluwarsa. Silakan generate ulang."}
+                  </span>
+                </div>
+              )}
 
               {/* Visual Progress Bar */}
-              <div className="w-full bg-[#1e0e11] h-1.5 rounded-full overflow-hidden">
-                <div
-                  className="bg-xevo-red h-full transition-all duration-1000 ease-linear"
-                  style={{ width: `${(timeLeft / 240) * 100}%` }}
-                />
-              </div>
+              {pairingStage === "processing" ? (
+                <div className="w-full bg-amber-950/60 h-2 rounded-full overflow-hidden relative">
+                  <div className="h-full bg-gradient-to-r from-amber-600 via-amber-400 to-amber-600 rounded-full animate-pulse w-full" />
+                </div>
+              ) : (
+                <div className="w-full bg-[#1e0e11] h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className="bg-xevo-red h-full transition-all duration-1000 ease-linear"
+                    style={{ width: `${(timeLeft / 240) * 100}%` }}
+                  />
+                </div>
+              )}
             </div>
           )}
         </CardContent>
@@ -392,7 +478,7 @@ function PairingContent() {
                 5
               </span>
               <span className="leading-relaxed">
-                Masukkan kode pairing 8 karakter yang muncul di atas dan tunggu notifikasi sukses terhubung.
+                Masukkan kode pairing 8 karakter yang muncul di atas dan tunggu status berubah menjadi sedang memproses masuk hingga berhasil.
               </span>
             </li>
           </ol>
