@@ -39,7 +39,7 @@ export function AdminSidebar() {
       } catch {}
     }
     loadAdminUser();
-  }, [pathname]);
+  }, []);
 
   const handleLogout = async () => {
     try {

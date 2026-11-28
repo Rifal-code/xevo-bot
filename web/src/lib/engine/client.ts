@@ -36,22 +36,33 @@ export class EngineClient {
     headers.set("x-engine-secret", this.secret);
     headers.set("Content-Type", "application/json");
 
-    const res = await fetch(url, {
-      ...options,
-      headers,
-      cache: "no-store",
-    });
+    // Timeout proteksi 3.5 detik agar fetch backend tidak menggantung navigasi SSR halaman web
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
 
-    const json = await res.json().catch(() => null);
-    if (!res.ok) {
-      throw new Error(
-        json?.message ||
-          json?.error?.message ||
-          `Engine request ke ${path} gagal dengan status HTTP ${res.status}`
-      );
+    try {
+      const res = await fetch(url, {
+        ...options,
+        signal: options.signal || controller.signal,
+        headers,
+        cache: "no-store",
+      });
+      clearTimeout(timeoutId);
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(
+          json?.message ||
+            json?.error?.message ||
+            `Engine request ke ${path} gagal dengan status HTTP ${res.status}`
+        );
+      }
+
+      return json as T;
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      throw err;
     }
-
-    return json as T;
   }
 
   async getHealth(): Promise<EngineHealth> {

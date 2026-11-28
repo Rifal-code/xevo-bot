@@ -13,26 +13,31 @@ export default async function DashboardPage() {
   let engineOnline = false;
   let userSessionCount = 0;
 
-  try {
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
+  // Jalankan query Supabase dan fetch status Engine secara paralel (tidak sequential)
+  const [sessionRes, healthRes] = await Promise.allSettled([
+    (async () => {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return 0;
       const adminDb = createAdminClient();
       const { count } = await adminDb
         .from("whatsapp_sessions")
         .select("*", { count: "exact", head: true })
         .eq("user_id", user.id);
-      userSessionCount = count || 0;
-    }
-  } catch {}
+      return count || 0;
+    })(),
+    engineClient.getHealth(),
+  ]);
 
-  try {
-    health = await engineClient.getHealth();
+  if (sessionRes.status === "fulfilled") {
+    userSessionCount = sessionRes.value;
+  }
+
+  if (healthRes.status === "fulfilled") {
+    health = healthRes.value;
     engineOnline = true;
-  } catch {
-    engineOnline = false;
   }
 
   const formatUptime = (seconds: number) => {

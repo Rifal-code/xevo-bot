@@ -40,15 +40,14 @@ export default function LoginPage() {
           .single();
 
         if (profile?.role === "admin") {
-          window.location.href = "/admin";
+          window.location.replace("/admin");
           return;
         }
       }
 
-      window.location.href = "/dashboard";
+      window.location.replace("/dashboard");
     } catch (err: any) {
       setError(err?.message || "Login gagal. Periksa email dan password.");
-    } finally {
       setLoading(false);
     }
   };

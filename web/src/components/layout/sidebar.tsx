@@ -22,6 +22,12 @@ export function Sidebar() {
   const [userName, setUserName] = React.useState<string | null>(null);
   const [userEmail, setUserEmail] = React.useState<string | null>(null);
   const [sessionCount, setSessionCount] = React.useState(0);
+  const [pendingHref, setPendingHref] = React.useState<string | null>(null);
+
+  // Reset state pending navigasi saat rute berhasil berpindah
+  React.useEffect(() => {
+    setPendingHref(null);
+  }, [pathname]);
 
   React.useEffect(() => {
     async function checkRoleAndQuota() {
@@ -63,7 +69,7 @@ export function Sidebar() {
       }
     }
     checkRoleAndQuota();
-  }, [pathname]);
+  }, []); // Cukup sekali saat mount agar tidak melakukan 3 query Supabase setiap klik menu
 
   const handleLogout = async () => {
     try {
@@ -103,20 +109,42 @@ export function Sidebar() {
           {visibleNav.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
+            const isPending = pendingHref === item.href && !isActive;
+
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={closeMobileMenu}
+                onClick={() => {
+                  if (pathname !== item.href) {
+                    setPendingHref(item.href);
+                  }
+                  closeMobileMenu();
+                }}
                 className={cn(
-                  "flex items-center gap-3 px-3.5 py-3 rounded-lg text-xs font-mono font-bold transition-all min-h-[44px] touch-manipulation",
+                  "flex items-center justify-between px-3.5 py-3 rounded-lg text-xs font-mono font-bold transition-all min-h-[44px] touch-manipulation select-none",
                   isActive
                     ? "bg-xevo-red text-white shadow-xevo-btn border border-[#ff4b55]"
-                    : "text-xevo-muted hover:text-white hover:bg-xevo-panel2 border border-transparent"
+                    : isPending
+                    ? "bg-xevo-panel2 text-white border border-xevo-red shadow-xevo-btn scale-[0.98] ring-1 ring-xevo-red/50"
+                    : "text-xevo-muted hover:text-white hover:bg-xevo-panel2 border border-transparent active:scale-[0.98]"
                 )}
               >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span className="truncate">{item.label}</span>
+                <div className="flex items-center gap-3 min-w-0">
+                  <Icon
+                    className={cn(
+                      "w-4 h-4 shrink-0 transition-transform",
+                      isPending && "animate-spin text-xevo-red"
+                    )}
+                  />
+                  <span className="truncate">{item.label}</span>
+                </div>
+
+                {isPending && (
+                  <span className="text-[9px] font-mono text-xevo-red font-black tracking-wider uppercase animate-pulse">
+                    Memuat...
+                  </span>
+                )}
               </Link>
             );
           })}

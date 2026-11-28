@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
-import { Button } from "@/components/ui/button";
+import { LandingCta } from "@/components/landing-cta";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ShieldCheck, KeyRound, Server } from "lucide-react";
 import { NavProvider } from "@/components/layout/nav-context";
@@ -29,18 +28,7 @@ export default function LandingPage() {
             Platform multi-session WhatsApp modern. Tautkan nomor secara instan dengan pairing code 8 karakter, isolasi akun per-user, dan integrasi WhatsApp Engine yang aman.
           </p>
 
-          <div className="mt-8 sm:mt-10 flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center w-full sm:w-auto px-4 sm:px-0 max-w-md sm:max-w-none">
-            <Link href="/login" className="w-full sm:w-auto">
-              <Button size="lg" className="w-full sm:w-auto px-6 sm:px-8">
-                MASUK KE DASHBOARD →
-              </Button>
-            </Link>
-            <Link href="/register" className="w-full sm:w-auto">
-              <Button variant="secondary" size="lg" className="w-full sm:w-auto px-6 sm:px-8">
-                DAFTAR AKUN BARU
-              </Button>
-            </Link>
-          </div>
+          <LandingCta />
 
           {/* Features Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mt-14 sm:mt-20 text-left w-full">

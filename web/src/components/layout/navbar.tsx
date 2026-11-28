@@ -28,7 +28,7 @@ export function Navbar({ showMenuToggle = false }: { showMenuToggle?: boolean })
       }
     }
     getUser();
-  }, [pathname]);
+  }, []);
 
   const handleLogout = async () => {
     try {
