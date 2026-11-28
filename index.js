@@ -403,6 +403,7 @@ async function startSession(number, options = {}) {
     reconnecting: false,
     reconnectAttempts: 0,
     removed: false,
+    pairedAt: options.pairedAt || 0,
     // Pending hanya untuk sesi baru yang sedang menunggu user memasukkan code.
     pendingPairing: options.pendingPairing === true
   }
@@ -436,8 +437,31 @@ async function startSession(number, options = {}) {
         console.log(`📡 [Pairing WS] Notification received (${number}): type=${type || 'unknown'}`)
       }
     })
-    conn.ws.on('CB:iq,,pair-success', () => {
+    conn.ws.on('CB:iq,,pair-success', async () => {
       console.log(`🎉 [Pairing WS] pair-success received (${number})! Handshake penautan berhasil.`)
+      session.pairedAt = Date.now()
+      if (session.state?.creds) {
+        session.state.creds.registered = true
+        try { await session.saveCreds() } catch {}
+      }
+      session.pendingPairing = false
+      if (session.pairingTimeout) clearTimeout(session.pairingTimeout)
+      session.pairingTimeout = null
+
+      // WhatsApp server setelah update terbaru tidak otomatis menutup soket registrasi pairing.
+      // Soket registrasi ini TIDAK BISA menerima CB:success ('open') karena Noise Handshake awal bertipe registrasi.
+      // Beri jeda 2000ms agar reply pair-device-sign dan pertukaran prekey selesai dikirim,
+      // lalu picu restart terencana agar bot langsung reconnect dengan generateLoginNode(creds.me)
+      // dan WhatsApp HP langsung mendeteksi koneksi aktif 'open' tanpa timeout!
+      setTimeout(async () => {
+        if (session.connected || session.removed) return
+        console.log(`🔄 [Pairing WS] Melakukan post-pairing restart agar login aktif (${number})...`)
+        try {
+          conn.end(new Boom('Restart required after pairing', { statusCode: DisconnectReason.restartRequired }))
+        } catch (e) {
+          try { conn.ws?.close?.() } catch {}
+        }
+      }, 2000)
     })
     conn.ws.on('CB:failure', (node) => {
       console.log(`⚠️ [Pairing WS] CB:failure received (${number}):`, node?.attrs?.reason || node?.attrs?.code || 'unknown')
@@ -557,6 +581,24 @@ async function startSession(number, options = {}) {
 
     if (isNewLogin) {
       console.log(`🎉 [Pairing Event] isNewLogin triggered (${number})`)
+      session.pairedAt = Date.now()
+      if (session.state?.creds) {
+        session.state.creds.registered = true
+        try { await session.saveCreds() } catch {}
+      }
+      session.pendingPairing = false
+      if (session.pairingTimeout) clearTimeout(session.pairingTimeout)
+      session.pairingTimeout = null
+
+      setTimeout(async () => {
+        if (session.connected || session.removed) return
+        console.log(`🔄 [Pairing Event] Triggering post-pairing restart (${number})...`)
+        try {
+          conn.end(new Boom('Restart required after pairing', { statusCode: DisconnectReason.restartRequired }))
+        } catch (e) {
+          try { conn.ws?.close?.() } catch {}
+        }
+      }, 2000)
     }
 
     if (connection === 'open') {
@@ -604,9 +646,15 @@ async function startSession(number, options = {}) {
 
       // 1. Jika pengguna benar-benar log out dari WhatsApp ponsel setelah terhubung (401)
       if (loggedOut && registered) {
-        console.log(`🗑️ Hapus sesi ${number}: logged_out_from_device`)
-        await removeSession(number, 'logged_out_from_device')
-        return
+        // Proteksi transisi handshake: Jangan hapus jika baru saja menyelesaikan handshake (dalam 30 detik terakhir),
+        // karena itu adalah sinyal transisi socket registrasi ke login reconnect, bukan user mengklik logout manual di HP.
+        if (session.pairedAt && (Date.now() - session.pairedAt < 30000)) {
+          console.log(`🔄 [Pairing] Mengabaikan kode 401 untuk ${number} karena baru saja handshake (transisi reconnect).`)
+        } else {
+          console.log(`🗑️ Hapus sesi ${number}: logged_out_from_device`)
+          await removeSession(number, 'logged_out_from_device')
+          return
+        }
       }
 
       // 2. Saat sesi dalam tahap penautan (pendingPairing):
@@ -639,16 +687,17 @@ async function startSession(number, options = {}) {
         return
       }
 
-      // Reconnect sangat cepat (500ms) jika restartRequired (515) atau saat pendingPairing,
+      // Reconnect sangat cepat (500ms) jika restartRequired (515), saat pendingPairing, atau baru saja handshake paired,
       // agar tidak kehilangan window pertukaran kunci dari WhatsApp HP.
-      const reconnectDelay = (restartRequired || session.pendingPairing)
+      const isFreshPair = session.pairedAt && (Date.now() - session.pairedAt < 30000)
+      const reconnectDelay = (restartRequired || session.pendingPairing || isFreshPair)
         ? 500
         : 3000 + Math.floor(Math.random() * 4000)
 
       if (session.reconnectTimeout) clearTimeout(session.reconnectTimeout)
       session.reconnectTimeout = setTimeout(async () => {
         if (session.removed || session.manualDisconnect) return
-        const keepPendingPairing = session.pendingPairing
+        const keepPendingPairing = session.pendingPairing && !session.pairedAt
         const preservedPairingTimeout = session.pairingTimeout
         session.pairingTimeout = null
 
@@ -658,12 +707,12 @@ async function startSession(number, options = {}) {
 
         sessions.delete(number)
         try {
-          const newSession = await startSession(number, { pendingPairing: keepPendingPairing })
+          const newSession = await startSession(number, { pendingPairing: keepPendingPairing, pairedAt: session.pairedAt })
           if (keepPendingPairing && preservedPairingTimeout && !newSession.pairingTimeout) {
             newSession.pairingTimeout = preservedPairingTimeout
           }
         } catch (err) {
-          console.error(`❌ Reconnect error (${number}):`, err)
+          console.error(`❌ Gagal reconnect sesi ${number}:`, err?.message || err)
         }
       }, reconnectDelay)
     }
