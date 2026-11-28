@@ -620,6 +620,8 @@ async function startSession(number, options = {}) {
 
         if (msgId) markMessageProcessed(msgId)
 
+        console.log(`📩 [${number}] Pesan masuk: "${(m.message?.conversation || m.message?.extendedTextMessage?.text || '').slice(0,50)}" ts=${msgTimestamp} connectedAt=${session.connectedAt} now=${nowSeconds}`)
+
         const processedMsg = await smsg(conn, m)
         if (processedMsg) await handleMessage(conn, processedMsg)
       }
