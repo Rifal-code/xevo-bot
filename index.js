@@ -819,19 +819,31 @@ async function requestPairing(phoneNumber) {
         await removeSession(number, 'fresh_pairing_request')
       }
 
-      session = await startSession(number, { pendingPairing: true })
-
       // Tunggu socket siap (WebSocket terbuka) sebelum meminta pairing code (polling 100ms agar responsif).
-      for (let i = 0; i < 30; i++) {
-        if (session.removed || sessions.get(number) !== session) {
+      // Coba hingga 60x (6s) untuk lingkungan hosting yang lambat, dengan satu retry otomatis
+      // bila socket putus sebelum siap.
+      let attempt = 0
+      while (true) {
+        attempt++
+        session = await startSession(number, { pendingPairing: true })
+
+        let socketReady = false
+        for (let i = 0; i < 60; i++) {
+          if (session.removed || sessions.get(number) !== session) break
+          if (session.conn?.ws?.isOpen) { socketReady = true; break }
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
+        await new Promise(resolve => setTimeout(resolve, 300))
+
+        if (socketReady && !session.removed && sessions.get(number) === session) break
+
+        // Socket putus sebelum siap — bersihkan dan coba sekali lagi (maks 2 percobaan total).
+        console.log(`⚠️ [Pairing] Socket belum siap (percobaan ${attempt}/2) untuk ${number}. Mencoba ulang...`)
+        await removeSession(number, 'pairing_socket_not_ready_retry')
+        if (attempt >= 2) {
           throw new Error('Koneksi pairing ditutup sebelum kode dibuat. Silakan coba lagi.')
         }
-        if (session.conn?.ws?.isOpen) break
-        await new Promise(resolve => setTimeout(resolve, 100))
-      }
-      await new Promise(resolve => setTimeout(resolve, 200))
-      if (session.removed || sessions.get(number) !== session) {
-        throw new Error('Koneksi pairing ditutup sebelum kode dibuat. Silakan coba lagi.')
+        await new Promise(resolve => setTimeout(resolve, 2000))
       }
 
       const code = await Promise.race([
