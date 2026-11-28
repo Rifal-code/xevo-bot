@@ -71,6 +71,20 @@ const patches = [
     to: "        platform: platformNode?.attrs.name,\n        registered: true\n",
     already: "        platform: platformNode?.attrs.name,\n        registered: true\n",
   },
+  {
+    name: 'defaultQueryTimeoutMs: 5 menit (Defaults/index.js)',
+    file: path.join(LIB, 'Defaults', 'index.js'),
+    from: "defaultQueryTimeoutMs: 60000,\n",
+    to: "defaultQueryTimeoutMs: 300000,\n",
+    already: "defaultQueryTimeoutMs: 300000,\n",
+  },
+  {
+    name: 'companion_finish: sendNode (fire-and-forget) instead of query (messages-recv.js)',
+    file: path.join(LIB, 'Socket', 'messages-recv.js'),
+    from: "  await query({\n",
+    to: "  await sendNode({\n",
+    already: "  await sendNode({\n",
+  },
 ];
 
 let applied = 0;
