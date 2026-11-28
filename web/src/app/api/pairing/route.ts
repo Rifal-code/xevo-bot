@@ -15,6 +15,8 @@ const pairingSchema = z.object({
     .regex(/^[0-9+ -]+$/, "Format nomor tidak valid"),
 });
 
+export const maxDuration = 45;
+
 export async function POST(req: NextRequest) {
   try {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "127.0.0.1";

@@ -30,15 +30,19 @@ export class EngineClient {
     this.secret = process.env.ENGINE_INTERNAL_SECRET || "xevo_engine_secret_key_2026";
   }
 
-  private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  private async request<T>(
+    path: string,
+    options: RequestInit = {},
+    timeoutMs: number = 5000
+  ): Promise<T> {
     const url = `${this.baseUrl}${path}`;
     const headers = new Headers(options.headers);
     headers.set("x-engine-secret", this.secret);
     headers.set("Content-Type", "application/json");
 
-    // Timeout proteksi 3.5 detik agar fetch backend tidak menggantung navigasi SSR halaman web
+    // Timeout dinamis: pairing code butuh waktu lebih lama (30s), sedangkan health/status butuh respon cepat (3.5s)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const res = await fetch(url, {
@@ -61,6 +65,11 @@ export class EngineClient {
       return json as T;
     } catch (err: any) {
       clearTimeout(timeoutId);
+      if (err?.name === "AbortError" || err?.message?.includes("aborted")) {
+        throw new Error(
+          `Request ke Engine timeout (${Math.round(timeoutMs / 1000)}s). WhatsApp Engine sedang memproses atau koneksi lambat. Silakan coba lagi.`
+        );
+      }
       throw err;
     }
   }
@@ -75,7 +84,7 @@ export class EngineClient {
       load?: number;
       ramUsed?: number;
       ramTotal?: number;
-    }>("/api/dashboard-stats");
+    }>("/api/dashboard-stats", {}, 3500);
 
     const usedBytes = res.ramUsed || 0;
     const totalBytes = res.ramTotal || 1;
@@ -102,7 +111,7 @@ export class EngineClient {
     const res = await this.request<{
       success: boolean;
       sessions?: Array<{ number: string; connected: boolean; registered: boolean }>;
-    }>("/api/sessions");
+    }>("/api/sessions", {}, 6000);
 
     return (res.sessions || []).map((s) => ({
       engineSessionRef: s.number,
@@ -114,34 +123,51 @@ export class EngineClient {
   }
 
   async requestPairing(phoneNumber: string): Promise<{ code: string; number: string }> {
+    // Generate pairing code membutuhkan koneksi WebSocket ke server WhatsApp (diberikan batas 30 detik)
     const res = await this.request<{
       success: boolean;
       code: string;
       number: string;
-    }>("/api/pairing", {
-      method: "POST",
-      body: JSON.stringify({ number: phoneNumber }),
-    });
+    }>(
+      "/api/pairing",
+      {
+        method: "POST",
+        body: JSON.stringify({ number: phoneNumber }),
+      },
+      30000
+    );
 
     return { code: res.code, number: res.number };
   }
 
   async deleteSession(sessionRef: string): Promise<{ success: boolean; message: string }> {
-    return this.request<{ success: boolean; message: string }>(`/api/sessions/${sessionRef}`, {
-      method: "DELETE",
-    });
+    return this.request<{ success: boolean; message: string }>(
+      `/api/sessions/${sessionRef}`,
+      {
+        method: "DELETE",
+      },
+      8000
+    );
   }
 
   async disconnectSession(sessionRef: string): Promise<{ success: boolean; message: string }> {
-    return this.request<{ success: boolean; message: string }>(`/api/sessions/${sessionRef}/disconnect`, {
-      method: "POST",
-    });
+    return this.request<{ success: boolean; message: string }>(
+      `/api/sessions/${sessionRef}/disconnect`,
+      {
+        method: "POST",
+      },
+      8000
+    );
   }
 
   async reconnectSession(sessionRef: string): Promise<{ success: boolean; message: string }> {
-    return this.request<{ success: boolean; message: string }>(`/api/sessions/${sessionRef}/reconnect`, {
-      method: "POST",
-    });
+    return this.request<{ success: boolean; message: string }>(
+      `/api/sessions/${sessionRef}/reconnect`,
+      {
+        method: "POST",
+      },
+      15000
+    );
   }
 }
 
