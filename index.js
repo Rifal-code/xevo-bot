@@ -560,6 +560,8 @@ async function startSession(number, options = {}) {
         if (!m?.message || m.key?.remoteJid === 'status@broadcast') continue
 
         const msgId = m.key?.id
+        const rawBody = m.message?.conversation || m.message?.extendedTextMessage?.text || ''
+        console.log(`🔍 [${number}] chatUpdate.type=${chatUpdate.type} msgId=${msgId} body="${rawBody.slice(0,40)}"`)
 
         if (msgId && m.message) {
           storeMessage(msgId, m.message)
@@ -567,6 +569,7 @@ async function startSession(number, options = {}) {
 
         // 1. Cegah eksekusi ulang pesan yang sudah pernah diproses di sesi ini maupun sesi sebelumnya
         if (msgId && isMessageProcessed(msgId)) {
+          console.log(`🔍 [${number}] SKIP: already processed (${msgId})`)
           continue
         }
 
@@ -574,6 +577,7 @@ async function startSession(number, options = {}) {
         // semua pesan yang masuk adalah antrean offline saat bot mati -> LANGSUNG ABAIKAN!
         if (!session.connected || !session.connectedAt) {
           if (msgId) markMessageProcessed(msgId)
+          console.log(`🔍 [${number}] SKIP: not connected (connected=${session.connected} connectedAt=${session.connectedAt})`)
           continue
         }
 
@@ -598,6 +602,7 @@ async function startSession(number, options = {}) {
         // Tolak pesan tanpa timestamp valid (NaN/0/negatif) karena bukan pesan chat interaktif realtime
         if (!msgTimestamp || isNaN(msgTimestamp) || msgTimestamp <= 0) {
           if (msgId) markMessageProcessed(msgId)
+          console.log(`🔍 [${number}] SKIP: invalid timestamp (${msgTimestamp})`)
           continue
         }
 
@@ -607,14 +612,14 @@ async function startSession(number, options = {}) {
         // Toleransi 30 detik untuk clock skew antara server dan WhatsApp
         if (msgTimestamp < session.connectedAt - 30) {
           if (msgId) markMessageProcessed(msgId)
-          console.log(`🛡️ [Anti-Replay] Abaikan pesan offline (${msgId}) dikirim ${session.connectedAt - msgTimestamp}s sebelum bot aktif.`)
+          console.log(`🔍 [${number}] SKIP: offline msg (ts=${msgTimestamp} < connectedAt-30=${session.connectedAt-30})`)
           continue
         }
 
         // 5. Abaikan pesan yang usianya sudah lebih dari 60 detik
         if (nowSeconds - msgTimestamp > 60) {
           if (msgId) markMessageProcessed(msgId)
-          console.log(`🛡️ [Anti-Replay] Abaikan pesan basi (${msgId}) usia ${nowSeconds - msgTimestamp}s.`)
+          console.log(`🔍 [${number}] SKIP: stale msg (age=${nowSeconds - msgTimestamp}s > 60)`)
           continue
         }
 
