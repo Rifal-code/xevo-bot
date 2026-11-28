@@ -1,5 +1,9 @@
 FROM node:20-bookworm-slim
 
+# Bust Railway build cache on every new commit (Railway injects RAILWAY_GIT_COMMIT_SHA).
+ARG RAILWAY_GIT_COMMIT_SHA=unknown
+RUN echo "build-commit: $RAILWAY_GIT_COMMIT_SHA"
+
 # Install system dependencies (python3, ffmpeg, curl)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
