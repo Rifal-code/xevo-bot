@@ -414,6 +414,7 @@ async function startSession(number, options = {}) {
     ...(waVersion ? { version: waVersion } : {}),
     logger: pino({ level: 'silent' }),
     printQRInTerminal: false,
+    qrTimeout: 300000, // 5 menit: cegah Baileys membunuh soket pairing di detik 80 akibat QR refs habis (408)
     browser: Browsers.ubuntu('Chrome'),
     auth: state,
     markOnlineOnConnect: false,
@@ -421,7 +422,7 @@ async function startSession(number, options = {}) {
     generateHighQualityLinkPreview: true,
     connectTimeoutMs: 60000,
     defaultQueryTimeoutMs: 60000,
-    keepAliveIntervalMs: 10000,
+    keepAliveIntervalMs: 45000, // 45 detik: toleran terhadap jeda paket WhatsApp server saat pairing
     retryRequestDelayMs: 350,
     getMessage: async (key) => {
       const msg = messageStore.get(key.id)
@@ -658,17 +659,25 @@ async function startSession(number, options = {}) {
       }
 
       // 2. Saat sesi dalam tahap penautan (pendingPairing):
-      // WhatsApp server SANGAT SERING menutup soket (kode 428, 408, 515, restartRequired, dsb)
-      // saat ponsel memproses handshake pertukaran kunci companion_finish.
-      // JANGAN hapus sesi di sini! Biarkan soket segera reconnect agar penautan selesai.
-      // Sesi pendingPairing hanya akan dihapus jika timer session.pairingTimeout habis (240 detik).
+      // Jika socket putus SEBELUM handshake bertukar kunci (belum ada pair-success dan belum registered):
+      // JANGAN lakukan reconnect, karena kode pairing yang sudah dibuat otomatis hangus di server WhatsApp.
+      // Hapus sesi secara bersih agar tidak terjadi loop zombie reconnect.
+      // Sebaliknya, jika handshake SUDAH terjadi (session.pairedAt atau registered), izinkan reconnect cepat
+      // agar bot menyelesaikan companion login node handshake.
       if (session.pendingPairing) {
         if (loggedOut) {
           console.log(`🗑️ Hapus sesi pairing ${number}: loggedOut (401)`)
           await removeSession(number, 'pairing_logged_out')
           return
         }
-        console.log(`🔄 [Pairing] Menjaga sesi ${number} tetap aktif untuk handshake companion (statusCode=${statusCode || 'unknown'}). Menjadwalkan reconnect...`)
+
+        if (!session.pairedAt && !registered) {
+          console.log(`⚠️ Sesi pairing ${number} terputus sebelum kode dimasukkan (statusCode=${statusCode || 'unknown'}). Menghapus sesi pairing agar tidak terjadi loop zombie.`)
+          await removeSession(number, `pairing_dropped_before_handshake_${statusCode || 'unknown'}`)
+          return
+        }
+
+        console.log(`🔄 [Pairing] Menjaga sesi ${number} tetap aktif untuk transisi login handshake (statusCode=${statusCode || 'unknown'}). Menjadwalkan reconnect...`)
       } else if (!registered) {
         // Sesi biasa (bukan pairing aktif) yang belum pernah tertaut dan socket terputus
         console.log(`🗑️ Hapus sesi ${number}: unlinked_and_unregistered (code=${statusCode || 'unknown'})`)
