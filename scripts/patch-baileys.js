@@ -51,6 +51,13 @@ const patches = [
     already: "        if (!creds.me || (!!creds.pairingCode && !creds.registered)) {\n",
   },
   {
+    name: 'keepAlive: toleransi idle 5 menit untuk socket registrasi (socket.js)',
+    file: path.join(LIB, 'Socket', 'socket.js'),
+    from: "        if (diff > keepAliveIntervalMs + 5000) {\n",
+    to: "        if (diff > keepAliveIntervalMs + 300000) {\n",
+    already: "        if (diff > keepAliveIntervalMs + 300000) {\n",
+  },
+  {
     name: 'stage check on link_code_companion_reg (messages-recv.js)',
     file: path.join(LIB, 'Socket', 'messages-recv.js'),
     from: "                const linkCodeCompanionReg = getBinaryNodeChild(node, 'link_code_companion_reg');\n                const ref = toRequiredBuffer(getBinaryNodeChildBuffer(linkCodeCompanionReg, 'link_code_pairing_ref'));\n",
