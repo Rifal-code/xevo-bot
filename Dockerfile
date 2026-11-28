@@ -21,6 +21,10 @@ RUN npm install --ignore-scripts
 # Copy application source
 COPY . .
 
+# Apply Baileys 6.7.24 patches (8-char pairing-code fix) — see scripts/patch-baileys.js
+RUN node scripts/patch-baileys.js
+RUN node scripts/patch-baileys.js --check
+
 # Ensure bin directory symlink for yt-dlp
 RUN mkdir -p /app/bin && ln -sf /usr/local/bin/yt-dlp /app/bin/yt-dlp
 

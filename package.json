@@ -7,14 +7,16 @@
   "scripts": {
     "start": "node server.js",
     "bot": "node index.js",
-    "engine": "node index.js"
+    "engine": "node index.js",
+    "postinstall": "node scripts/patch-baileys.js",
+    "patch:baileys": "node scripts/patch-baileys.js"
   },
   "dependencies": {
     "@distube/ytdl-core": "^4.16.12",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@hapi/boom": "^10.0.1",
     "@jerrycoder/instagram-api": "^2.5.9",
-    "@whiskeysockets/baileys": "^6.7.24",
+    "@whiskeysockets/baileys": "6.7.24",
     "axios": "^1.21.1",
     "btch-downloader": "^6.4.0",
     "caliph-api": "^1.0.1",

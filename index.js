@@ -424,6 +424,7 @@ async function removeSession(number, reason = 'unknown') {
     session.reconnecting = false
     if (session.reconnectTimeout) clearTimeout(session.reconnectTimeout)
     if (session.pairingTimeout) clearTimeout(session.pairingTimeout)
+    if (session.restartTimer) clearTimeout(session.restartTimer)
     await safeCloseSocket(session.conn)
   }
 
@@ -464,7 +465,9 @@ async function startSession(number, options = {}) {
     removed: false,
     pairedAt: options.pairedAt || 0,
     // Pending hanya untuk sesi baru yang sedang menunggu user memasukkan code.
-    pendingPairing: options.pendingPairing === true
+    pendingPairing: options.pendingPairing === true,
+    restartScheduled: false,
+    restartTimer: null
   }
 
   const waVersion = await getCachedWaVersion()
@@ -493,8 +496,9 @@ async function startSession(number, options = {}) {
   if (conn.ws && typeof conn.ws.on === 'function') {
     conn.ws.on('CB:notification', (node) => {
       const type = node?.attrs?.type
+      const stage = (Array.isArray(node?.content) && node.content[0]?.attrs?.stage) || (node?.content?.attrs?.stage)
       if (session.pendingPairing || type === 'link_code_companion_reg' || type === 'companion_reg_refresh') {
-        console.log(`📡 [Pairing WS] Notification received (${number}): type=${type || 'unknown'}`)
+        console.log(`📡 [Pairing WS] Notification received (${number}): type=${type || 'unknown'} stage=${stage || 'none'}`)
       }
     })
     conn.ws.on('CB:iq,,pair-success', async () => {
@@ -511,18 +515,22 @@ async function startSession(number, options = {}) {
 
       // WhatsApp server setelah update terbaru tidak otomatis menutup soket registrasi pairing.
       // Soket registrasi ini TIDAK BISA menerima CB:success ('open') karena Noise Handshake awal bertipe registrasi.
-      // Beri jeda 2000ms agar reply pair-device-sign dan pertukaran prekey selesai dikirim,
-      // lalu picu restart terencana agar bot langsung reconnect dengan generateLoginNode(creds.me)
-      // dan WhatsApp HP langsung mendeteksi koneksi aktif 'open' tanpa timeout!
-      setTimeout(async () => {
+      // Beri jeda 5000ms agar reply pair-device-sign dan pertukaran prekey selesai dikirim,
+      // lalu picu restart terencana (sekali saja) agar bot reconnect dengan generateLoginNode(creds.me).
+      if (session.restartScheduled) return
+      session.restartScheduled = true
+      session.restartTimer = setTimeout(async () => {
         if (session.connected || session.removed) return
         console.log(`🔄 [Pairing WS] Melakukan post-pairing restart agar login aktif (${number})...`)
+        try {
+          await session.saveCreds()
+        } catch {}
         try {
           conn.end(new Boom('Restart required after pairing', { statusCode: DisconnectReason.restartRequired }))
         } catch (e) {
           try { conn.ws?.close?.() } catch {}
         }
-      }, 2000)
+      }, 5000)
     })
     conn.ws.on('CB:failure', (node) => {
       console.log(`⚠️ [Pairing WS] CB:failure received (${number}):`, node?.attrs?.reason || node?.attrs?.code || 'unknown')
@@ -651,16 +659,7 @@ async function startSession(number, options = {}) {
       session.pendingPairing = false
       if (session.pairingTimeout) clearTimeout(session.pairingTimeout)
       session.pairingTimeout = null
-
-      setTimeout(async () => {
-        if (session.connected || session.removed) return
-        console.log(`🔄 [Pairing Event] Triggering post-pairing restart (${number})...`)
-        try {
-          conn.end(new Boom('Restart required after pairing', { statusCode: DisconnectReason.restartRequired }))
-        } catch (e) {
-          try { conn.ws?.close?.() } catch {}
-        }
-      }, 2000)
+      // Restart ditangani oleh handler CB:iq,,pair-success (single source, guard restartScheduled).
     }
 
     if (connection === 'open') {
@@ -672,6 +671,7 @@ async function startSession(number, options = {}) {
       session.pendingPairing = false
       if (session.reconnectTimeout) clearTimeout(session.reconnectTimeout)
       if (session.pairingTimeout) clearTimeout(session.pairingTimeout)
+      if (session.restartTimer) { clearTimeout(session.restartTimer); session.restartTimer = null }
       session.reconnectTimeout = null
       session.pairingTimeout = null
       console.log(`✅ Connected to WhatsApp: ${number}`)
