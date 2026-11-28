@@ -413,7 +413,7 @@ async function startSession(number, options = {}) {
     ...(waVersion ? { version: waVersion } : {}),
     logger: pino({ level: 'silent' }),
     printQRInTerminal: false,
-    browser: Browsers.windows('Chrome'),
+    browser: Browsers.ubuntu('Chrome'),
     auth: state,
     markOnlineOnConnect: false,
     syncFullHistory: false,
@@ -427,6 +427,22 @@ async function startSession(number, options = {}) {
       return msg || undefined
     }
   })
+
+  // Listener diagnostik event WebSocket agar alur pairing handshake terpantau jelas di log Railway
+  if (conn.ws && typeof conn.ws.on === 'function') {
+    conn.ws.on('CB:notification', (node) => {
+      const type = node?.attrs?.type
+      if (session.pendingPairing || type === 'link_code_companion_reg' || type === 'companion_reg_refresh') {
+        console.log(`📡 [Pairing WS] Notification received (${number}): type=${type || 'unknown'}`)
+      }
+    })
+    conn.ws.on('CB:iq,,pair-success', () => {
+      console.log(`🎉 [Pairing WS] pair-success received (${number})! Handshake penautan berhasil.`)
+    })
+    conn.ws.on('CB:failure', (node) => {
+      console.log(`⚠️ [Pairing WS] CB:failure received (${number}):`, node?.attrs?.reason || node?.attrs?.code || 'unknown')
+    })
+  }
 
   // Hook sendMessage agar pesan yang dikirim bot disimpan untuk permintaan retry E2EE WhatsApp HP
   const originalSendMessage = conn.sendMessage.bind(conn)
@@ -535,9 +551,13 @@ async function startSession(number, options = {}) {
   })
 
   conn.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect } = update
+    const { connection, lastDisconnect, isNewLogin } = update
 
     if (session.removed) return
+
+    if (isNewLogin) {
+      console.log(`🎉 [Pairing Event] isNewLogin triggered (${number})`)
+    }
 
     if (connection === 'open') {
       session.connected = true
@@ -631,6 +651,10 @@ async function startSession(number, options = {}) {
         const keepPendingPairing = session.pendingPairing
         const preservedPairingTimeout = session.pairingTimeout
         session.pairingTimeout = null
+
+        // Pastikan soket lama ditutup bersih agar tidak ada duplikasi koneksi
+        try { session.conn?.ws?.close?.() } catch {}
+        try { session.conn?.end?.() } catch {}
 
         sessions.delete(number)
         try {
