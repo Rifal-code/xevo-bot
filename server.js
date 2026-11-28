@@ -9,6 +9,31 @@ try {
 }
 console.log('====================================================')
 
+// Runtime safety net: apply Baileys 6.7.24 patches even if the build step
+// (Dockerfile RUN) was cached or skipped. Idempotent.
+try {
+  require('./scripts/patch-baileys.js')
+} catch (e) {
+  console.log('❌ [Baileys Patch] FAILED:', e?.message || e)
+}
+// Verify the patch actually took effect in the installed Baileys.
+try {
+  const fs = require('fs')
+  const socketSrc = fs.readFileSync(require.resolve('@whiskeysockets/baileys/lib/Socket/socket.js'), 'utf8')
+  const noncePatched = socketSrc.includes("content: Buffer.alloc(1)")
+  const branchPatched = socketSrc.includes("!!creds.pairingCode && !creds.registered")
+  const msgSrc = fs.readFileSync(require.resolve('@whiskeysockets/baileys/lib/Socket/messages-recv.js'), 'utf8')
+  const stagePatched = msgSrc.includes("stage !== 'primary_hello'")
+  const vcSrc = fs.readFileSync(require.resolve('@whiskeysockets/baileys/lib/Utils/validate-connection.js'), 'utf8')
+  const regPatched = vcSrc.includes("registered: true")
+  console.log(`🧩 [Baileys Patch Status] version=${require('@whiskeysockets/baileys/package.json').version} nonce=${noncePatched} branch=${branchPatched} stage=${stagePatched} registered=${regPatched}`)
+  if (!(noncePatched && branchPatched && stagePatched && regPatched)) {
+    console.log('⚠️ [Baileys Patch Status] INCOMPLETE — pairing-code linking will likely fail. Check node_modules/@whiskeysockets/baileys version and scripts/patch-baileys.js.')
+  }
+} catch (e) {
+  console.log('❌ [Baileys Patch Status] verification failed:', e?.message || e)
+}
+
 const http = require('http')
 const https = require('https')
 const fs = require('fs')
