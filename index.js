@@ -420,7 +420,7 @@ async function startSession(number, options = {}) {
     generateHighQualityLinkPreview: true,
     connectTimeoutMs: 60000,
     defaultQueryTimeoutMs: 60000,
-    keepAliveIntervalMs: 25000,
+    keepAliveIntervalMs: 10000,
     retryRequestDelayMs: 350,
     getMessage: async (key) => {
       const msg = messageStore.get(key.id)
