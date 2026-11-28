@@ -604,14 +604,15 @@ async function startSession(number, options = {}) {
         const nowSeconds = Math.floor(Date.now() / 1000)
 
         // 4. Abaikan pesan yang dikirim sebelum bot terhubung (pesan yang dikirim saat server restart/offline)
-        if (msgTimestamp < session.connectedAt) {
+        // Toleransi 30 detik untuk clock skew antara server dan WhatsApp
+        if (msgTimestamp < session.connectedAt - 30) {
           if (msgId) markMessageProcessed(msgId)
           console.log(`🛡️ [Anti-Replay] Abaikan pesan offline (${msgId}) dikirim ${session.connectedAt - msgTimestamp}s sebelum bot aktif.`)
           continue
         }
 
-        // 5. Abaikan pesan yang usianya sudah lebih dari 15 detik
-        if (nowSeconds - msgTimestamp > 15) {
+        // 5. Abaikan pesan yang usianya sudah lebih dari 60 detik
+        if (nowSeconds - msgTimestamp > 60) {
           if (msgId) markMessageProcessed(msgId)
           console.log(`🛡️ [Anti-Replay] Abaikan pesan basi (${msgId}) usia ${nowSeconds - msgTimestamp}s.`)
           continue
